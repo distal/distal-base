@@ -22,3 +22,13 @@ trait EmptyLifeCycleAwareChannelHandler extends LifeCycleAwareChannelHandler {
   def beforeAdd(ctx :ChannelHandlerContext) {}
   def beforeRemove(ctx :ChannelHandlerContext) {}
 }
+
+
+trait PrintingHandler extends MessageReceivedHandler { 
+  override def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) = { 
+    println(e)
+
+    ctx.sendUpstream(e)
+  }
+
+}
