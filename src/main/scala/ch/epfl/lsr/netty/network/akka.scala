@@ -25,17 +25,22 @@ case class ActorConnectionId(name :String, host :String, port :Int) {
 
 }
 
-class NetworkingSystem(val hostname:String, val port:Int, options :Tuple2[String,Any]*) { 
+
+class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,Any]) { 
   import implicitConversions._
 
   val localAddress = new InetSocketAddress(hostname, port)
 
-  def this(addr :InetSocketAddress, options :Tuple2[String, Any]*) = { 
-    this(addr.getHostName, addr.getPort, options :_*)
+  def this(addr :InetSocketAddress, options :Map[String, Any]) = { 
+    this(addr.getHostName, addr.getPort, options.toMap)
+  }
+
+  def this(options :Map[String, Any]) { 
+    this(options.get("localAddress").asInstanceOf[InetSocketAddress],options)
   }
 
   def this(options :Tuple2[String, Any]*) { 
-    this(options.toMap.get("localAddress").asInstanceOf[InetSocketAddress],options :_*)
+    this(options.toMap)
   }
 
   val dispatchingMap = new HashMap[String, ActorNetwork]()
@@ -63,7 +68,7 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Tuple2[String
   }
 
   val serverBootstrap = { 
-    val bs = NIOSocketServer.bootstrap(options :_*) { 
+    val bs = SocketServer.bootstrap(options) { 
       pipeline (
 	new DispatchingHandler(getPipelineExtension _),
 	// everyone uses kryo, so we can already add that
@@ -92,11 +97,10 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Tuple2[String
     newpipe
   }
 
-
   val remoteSelector = new RemoteSelectionHandler()
-  val reconnector = new ReconnectionHandler(50, copyPipeline)
+  val reconnector = new ReconnectionHandler(100, copyPipeline)
   val clientBootstrap = { 
-    NIOSocketCient.bootstrap(options :_*) { newClientPipeline }
+    SocketClient.bootstrap(options) { newClientPipeline }
   }
 
   def connectTo(other :ActorConnectionId, localNetwork :ActorNetwork) :ChannelFuture = { 

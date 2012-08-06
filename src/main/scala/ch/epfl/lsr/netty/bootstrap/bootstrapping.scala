@@ -1,10 +1,10 @@
 package ch.epfl.lsr.netty.bootstrap
 
-import org.jboss.netty.bootstrap.{ Bootstrap, ServerBootstrap, ClientBootstrap }
+import org.jboss.netty.bootstrap.{ Bootstrap, ServerBootstrap, ClientBootstrap, ConnectionlessBootstrap }
 import org.jboss.netty.channel._
 
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory
-import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory
+import org.jboss.netty.channel.socket.nio.{ NioServerSocketChannelFactory, NioClientSocketChannelFactory, NioDatagramChannelFactory }
+import org.jboss.netty.channel.socket.oio.{ OioServerSocketChannelFactory, OioClientSocketChannelFactory, OioDatagramChannelFactory }
 
 object PipelineHelper { 
   
@@ -40,27 +40,92 @@ trait CanApplyPipeline[T] {
   }
 }
 
-
 trait Bootstrapper[T <: Bootstrap] { 
-  def bootstrap(options :Tuple2[String,Any]*) : T with CanApplyPipeline[T] 
+  import scala.collection.JavaConverters._
+  
+  def bootstrap(options :Map[String,Any]) : T with CanApplyPipeline[T] 
 
-  def setOptions(bootstrap :T with CanApplyPipeline[T], options:Seq[(String,Any)]) : T with CanApplyPipeline[T] = { 
+  def bootstrap(options :Tuple2[String,Any]*) : T with CanApplyPipeline[T] = { 
+    bootstrap(options.toMap)
+  }
+
+  def setOptions(bootstrap :T with CanApplyPipeline[T], options:Map[String,Any]) : T with CanApplyPipeline[T] = { 
+    setOptions(bootstrap, options.view)
+  }
+
+  def setOptions(bootstrap :T with CanApplyPipeline[T], options:Traversable[(String,Any)]) : T with CanApplyPipeline[T] = { 
     options.foreach((bootstrap.setOption _).tupled)
     bootstrap
   }
 }
 
-object NIOSocketCient extends Bootstrapper[ClientBootstrap] { 
-  def bootstrap(options :Tuple2[String,Any]*)  : ClientBootstrap with CanApplyPipeline[ClientBootstrap] = { 
+object ChannelFactories { 
+  private def useNIO(options :Map[String,Any]) :Boolean = { 
+    if(options==null)
+      true
+    else { 
+      options.find(sa => sa._1 == "UseNIO") match { 
+	case Some((_, false)) => false
+	case _ => true
+      }
+    }
+  }
+  
+  def server(options :Map[String,Any]) = { 
+    useNIO(options) match { 
+      case false => new OioServerSocketChannelFactory()
+      case _ => new NioServerSocketChannelFactory()
+    }
+  }
+
+  def client(options :Map[String,Any]) = { 
+    useNIO(options) match { 
+      case false => new OioClientSocketChannelFactory()
+      case _ => new NioClientSocketChannelFactory()
+    }
+  }
+
+  def datagram(options :Map[String,Any]) = { 
+    useNIO(options) match { 
+      case false => new OioDatagramChannelFactory()
+      case _ => new NioDatagramChannelFactory()
+    }
+  }
+
+}
+
+object NIOSocketClient extends Bootstrapper[ClientBootstrap] { 
+  def bootstrap(options :Map[String,Any])  : ClientBootstrap with CanApplyPipeline[ClientBootstrap] = { 
     val bootstrap = new ClientBootstrap(new NioClientSocketChannelFactory()) with CanApplyPipeline[ClientBootstrap] 
     setOptions(bootstrap, options)
   }
 }
 
 object NIOSocketServer extends Bootstrapper[ServerBootstrap] { 
-  def bootstrap(options :Tuple2[String,Any]*)  : ServerBootstrap with CanApplyPipeline[ServerBootstrap]  = { 
+  def bootstrap(options :Map[String,Any])  : ServerBootstrap with CanApplyPipeline[ServerBootstrap]  = { 
     val bootstrap = new ServerBootstrap(new NioServerSocketChannelFactory()) with CanApplyPipeline[ServerBootstrap]
     setOptions(bootstrap, options)
   }
 }
 
+object SocketServer extends Bootstrapper[ServerBootstrap] { 
+  def bootstrap(options :Map[String,Any])  : ServerBootstrap with CanApplyPipeline[ServerBootstrap]  = { 
+    val bootstrap = new ServerBootstrap(ChannelFactories.server(options)) with CanApplyPipeline[ServerBootstrap]
+    setOptions(bootstrap, options)
+  }
+}
+
+object SocketClient extends Bootstrapper[ClientBootstrap] { 
+  def bootstrap(options :Map[String,Any])  : ClientBootstrap with CanApplyPipeline[ClientBootstrap]  = { 
+    val bootstrap = new ClientBootstrap(ChannelFactories.client(options)) with CanApplyPipeline[ClientBootstrap]
+    setOptions(bootstrap, options)
+  }
+}
+
+
+object DatagramServer extends  Bootstrapper[ConnectionlessBootstrap] { 
+  def bootstrap(options :Map[String,Any])  : ConnectionlessBootstrap with CanApplyPipeline[ConnectionlessBootstrap]  = { 
+    val bootstrap = new ConnectionlessBootstrap(ChannelFactories.datagram(options)) with CanApplyPipeline[ConnectionlessBootstrap]
+    setOptions(bootstrap, options)
+  }
+}
