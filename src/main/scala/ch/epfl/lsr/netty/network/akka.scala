@@ -16,12 +16,12 @@ import scala.collection.mutable.HashMap
 import java.net.{ SocketAddress, InetSocketAddress }
 
 object implicitConversions { 
-  implicit def ActorConnectionId2SocketAddress(id :ActorConnectionId) :SocketAddress = id.toSocketAddress
+  implicit def ActorConnectionId2SocketAddress(id :ActorConnectionId) :SocketAddress = id.getSocketAddress
 
 }
 
 case class ActorConnectionId(name :String, host :String, port :Int) { 
-  lazy val toSocketAddress = new InetSocketAddress(host, port)
+  lazy val getSocketAddress = new InetSocketAddress(host, port)
 
 }
 
