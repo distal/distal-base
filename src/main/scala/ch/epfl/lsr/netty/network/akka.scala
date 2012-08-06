@@ -4,7 +4,7 @@ import ch.epfl.lsr.netty.bootstrap._
 import ch.epfl.lsr.netty.channel.{ DispatchingHandler, MessageReceivedHandler, RemoteSelectionHandler, ReconnectionHandler }
 import ch.epfl.lsr.netty.channel.akka.ActorForwardingHandler
 import ch.epfl.lsr.netty.codec.kryo._
-import ch.epfl.lsr.netty.util.{ InIOThread, ChannelFutures }
+import ch.epfl.lsr.netty.util.{ InOrderedPool, ChannelFutures }
 
 import org.jboss.netty.channel._
 
@@ -132,11 +132,12 @@ class ActorNetwork(actor :ActorRef, name: String, system :NetworkingSystem) {
   
 
   def sendTo(m :Any, ids :ActorConnectionId*) :Unit = { 
+    //println("sendTo("+m+", "+ids+")")
     ids.foreach{ 
       remoteId => 
 	val ctx = getContext(remoteId)
 	if(ctx.nonEmpty) { 
-	  InIOThread.write(ctx.get, m)
+	  InOrderedPool.write(ctx.get, m)
 	} else { 
 	  val future = system.connectTo(remoteId, this)
 	  ChannelFutures.onCompleted(future) { 
@@ -164,3 +165,5 @@ class ActorNetwork(actor :ActorRef, name: String, system :NetworkingSystem) {
     }
   }
 }
+
+
