@@ -15,15 +15,6 @@ import scala.collection.mutable.HashMap
 
 import java.net.{ SocketAddress, InetSocketAddress }
 
-object implicitConversions { 
-  implicit def ActorConnectionId2SocketAddress(id :ActorConnectionId) :SocketAddress = id.getSocketAddress
-
-}
-
-case class ActorConnectionId(name :String, host :String, port :Int) { 
-  lazy val getSocketAddress = new InetSocketAddress(host, port)
-
-}
 
 
 class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,Any]) { 
@@ -103,12 +94,12 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
     SocketClient.bootstrap(options) { newClientPipeline }
   }
 
-  def connectTo(other :ActorConnectionId, localNetwork :ActorNetwork) :ChannelFuture = { 
+  def connectTo(other :ActorLocation, localNetwork :ActorNetwork) :ChannelFuture = { 
 
     println("connecting to "+other+" ")
     //new Exception("").printStackTrace
     
-    val future = clientBootstrap.bind(new InetSocketAddress(port))
+    val future = clientBootstrap.bind(new InetSocketAddress(port)) // reason for address already in use
     val channel = future.getChannel
     val handler = localNetwork.newHandler
     RemoteSelectionHandler.setSelectionString(channel.getPipeline,other.name)
@@ -119,19 +110,19 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
 
 
 class ActorNetwork(actor :ActorRef, name: String, system :NetworkingSystem) { 
-  val localId = new ActorConnectionId(name, system.hostname, system.port)
+  val localId = new ActorLocation(name, system.hostname, system.port)
 
-  private val contexts = new HashMap[ActorConnectionId,ChannelHandlerContext]()
+  private val contexts = new HashMap[ActorLocation,ChannelHandlerContext]()
 
-  private def addContext(id :ActorConnectionId, ctx :ChannelHandlerContext) { 
+  private def addContext(id :ActorLocation, ctx :ChannelHandlerContext) { 
     contexts.synchronized{ contexts.update(id, ctx) }
   }
-  private def getContext(id :ActorConnectionId) = { 
+  private def getContext(id :ActorLocation) = { 
     contexts.synchronized{ contexts.get(id) }
   }
   
 
-  def sendTo(m :Any, ids :ActorConnectionId*) :Unit = { 
+  def sendTo(m :Any, ids :ActorLocation*) :Unit = { 
     //println("sendTo("+m+", "+ids+")")
     ids.foreach{ 
       remoteId => 
@@ -156,8 +147,8 @@ class ActorNetwork(actor :ActorRef, name: String, system :NetworkingSystem) {
   def newHandler = { 
     new MessageReceivedHandler { 
       override def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) { 
-	if(e.getMessage.isInstanceOf[ActorConnectionId]) { 
-	  addContext(e.getMessage.asInstanceOf[ActorConnectionId], ctx)
+	if(e.getMessage.isInstanceOf[ActorLocation]) { 
+	  addContext(e.getMessage.asInstanceOf[ActorLocation], ctx)
 	} else { 
 	  actor ! e.getMessage
 	}
