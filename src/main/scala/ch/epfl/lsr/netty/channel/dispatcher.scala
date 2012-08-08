@@ -32,7 +32,7 @@ class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends Deli
       val toAppend = optionallyAppend.get
       
       for(e <- toAppend.toMap.entrySet) { 
-	pipeline.addLast("Extension"+e.getKey, e.getValue)
+	pipeline.addLast(this.toString+"Extension"+e.getKey, e.getValue)
       }
 
       pipeline remove this
@@ -43,7 +43,7 @@ class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends Deli
   }
 
   override def exceptionCaught(ctx :ChannelHandlerContext, e :ExceptionEvent) { 
-    println("DispatchingHandler "+e.getCause.printStackTrace)
+    println("DispatchingHandler "+e.getCause.getStackTrace)
     super.exceptionCaught(ctx, e)
   }
   
@@ -64,22 +64,23 @@ object RemoteSelectionHandler {
   }
 }
 
-class RemoteSelectionHandler extends SimpleChannelHandler { 
+class RemoteSelectionHandler extends SimpleChannelHandler  { 
 
   def getSelectionString(ctx :ChannelHandlerContext) = ctx.getAttachment.asInstanceOf[String]
 
-  override def connectRequested(ctx :ChannelHandlerContext, e :ChannelStateEvent) { 
+  override def channelConnected(ctx :ChannelHandlerContext, e :ChannelStateEvent) { 
+    println("selection connected")
+    super.channelConnected(ctx, e)
+  }
 
-    val buffer =
-      // basicly copied from netty's StringEncoder
-      copiedBuffer(ctx.getChannel.getConfig.getBufferFactory.getDefaultOrder, getSelectionString(ctx)+"\n", Charset.defaultCharset)
-    
-    println("will select "+ getSelectionString(ctx))
-    
+  override def connectRequested(ctx :ChannelHandlerContext, e :ChannelStateEvent) { 
     ChannelFutures.onSuccess(e.getFuture) { 
       f => 
-	println("now writing selection string")
-        // send write event downstream
+	val buffer =
+	  // basicly copied from netty's StringEncoder
+	  copiedBuffer(ctx.getChannel.getConfig.getBufferFactory.getDefaultOrder, getSelectionString(ctx)+"\n", Charset.defaultCharset)
+	println("selection connector future (writing selection stream)")
+	// send write event downstream
 	Channels.write(ctx, Channels.succeededFuture(e.getChannel), buffer)
     }
 

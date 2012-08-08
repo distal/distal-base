@@ -1,8 +1,10 @@
 package ch.epfl.lsr.netty.channel
 
-import org.jboss.netty.channel.SimpleChannelHandler
-import org.jboss.netty.channel.{ ChannelHandlerContext, MessageEvent, ExceptionEvent, LifeCycleAwareChannelHandler }
+//import org.jboss.netty.channel.{ SimpleChannelHandler, SimpleUpstreamHandler }
+//import org.jboss.netty.channel.{ ChannelHandlerContext, ChannelStateEvent, MessageEvent, ExceptionEvent, LifeCycleAwareChannelHandler }
 
+import org.jboss.netty.channel._
+import org.jboss.netty.buffer.ChannelBuffer
 
 
 trait MessageReceivedHandler extends SimpleChannelHandler  { 
@@ -10,7 +12,7 @@ trait MessageReceivedHandler extends SimpleChannelHandler  {
   def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) 
 
   override def exceptionCaught(ctx :ChannelHandlerContext, e :ExceptionEvent) { 
-    e.getCause.printStackTrace
+    // e.getCause.printStackTrace
     e.getChannel.close
   }
 }
