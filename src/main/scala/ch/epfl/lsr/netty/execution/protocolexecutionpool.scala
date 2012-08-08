@@ -22,7 +22,7 @@ object InProtocolPool {
     pool execute new DefaultProtocolRunnable(protocol, task) 
   }
 
-  def execute(protocol :Protocol, task : Function0[Unit]) { 
+  def execute(protocol :Protocol, task : =>Unit) { 
     pool execute new AbstractProtocolRunnable(protocol) { 
       def run = { task }
     }

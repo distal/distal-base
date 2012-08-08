@@ -22,21 +22,6 @@ case class ProtocolLocation(name :String, host :String, port :Int) {
 }
 
 
-
-trait Protocol {
-  lazy val network :Network = Protocol.getBoundNetwork(this)
-  def location :ProtocolLocation
-
-  def inPool(task :Function0[Unit]) { 
-    InProtocolPool.execute(this, task)
-  }
-
-  def onMessageReceived(m :AnyRef) :Unit
-}
-
-
-
-
 trait ProtocolRunnable extends Runnable { 
   def protocol : Protocol
 }
@@ -49,6 +34,26 @@ class DefaultProtocolRunnable(protocol :Protocol, runnable: Runnable) extends Ab
 }
 
 
+trait Protocol {
+  lazy val network :Network = Protocol.getBoundNetwork(this)
+  def location :ProtocolLocation
+
+  final def start = { 
+    network; 
+    onStart
+  }
+
+  def inPool(task : =>Unit) { 
+    InProtocolPool.execute(this, task)
+  }
+
+  def fireMessageReceived(m :AnyRef) { 
+    inPool(onMessageReceived(m))
+  }
+
+  def onMessageReceived(m :AnyRef) :Unit
+  def onStart :Unit = { }
+}
 
 object Protocol { 
   import implicitConversions._
@@ -86,7 +91,8 @@ object Protocol {
 
   private class ProtocolNetwork(protocol: Protocol) extends AbstractNetwork(protocol.location) { 
     def onMessageReceived(ctx :ChannelSource, msg :AnyRef) { 
-      protocol.onMessageReceived(msg)
+      // execute the handler in ProtocolPool
+      protocol.fireMessageReceived(msg)
     }
   }
 
