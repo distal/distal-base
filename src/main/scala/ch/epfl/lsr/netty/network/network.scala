@@ -1,12 +1,12 @@
 package ch.epfl.lsr.netty.network
 
-import ch.epfl.lsr.netty.bootstrap._
-import ch.epfl.lsr.netty.channel._
-import ch.epfl.lsr.netty.codec.kryo._
-import ch.epfl.lsr.netty.util.{ ChannelFutures }
-import ch.epfl.lsr.netty.util.Timer._
-import ch.epfl.lsr.netty.execution.InDownPool
-
+import _root_.ch.epfl.lsr.netty.bootstrap._
+import _root_.ch.epfl.lsr.netty.channel._
+import _root_.ch.epfl.lsr.netty.codec.kryo._
+import _root_.ch.epfl.lsr.netty.util.{ ChannelFutures }
+import _root_.ch.epfl.lsr.netty.util.Timer._
+import _root_.ch.epfl.lsr.netty.execution.InDownPool
+import _root_.ch.epfl.lsr.netty.protocol.{ ProtocolLocation }
 
 import org.jboss.netty.channel._
 
@@ -17,36 +17,24 @@ import scala.collection.mutable.HashMap
 import java.net.{ SocketAddress, InetSocketAddress }
 
 object implicitConversions { 
+  import _root_.ch.epfl.lsr.netty.protocol.implicitConversions._
   implicit def ProtocolLocation2SocketAddress(id :ProtocolLocation) :SocketAddress = id.getSocketAddress
 }
 
-case class ProtocolLocation(name :String, host :String, port :Int) { 
-  def this(u :java.net.URI) = this(u.getPath, u.getHost, u.getPort)
-  lazy val getSocketAddress = new InetSocketAddress(host, port)
-}
 
-
-class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,Any]) { 
+class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,Any]) { 
   import scala.collection.JavaConversions._
   import implicitConversions._
-
-  val localAddress = new InetSocketAddress(hostname, port)
-
-  def this(addr :InetSocketAddress, options :Map[String, Any]) = { 
-    this(addr.getHostName, addr.getPort, options.toMap)
-  }
 
   def this(options :Map[String, Any]) { 
     this(options.get("localAddress").asInstanceOf[InetSocketAddress],options)
   }
 
-  def this(options :Tuple2[String, Any]*) { 
-    this(options.toMap)
-  }
+  val dispatchingMap = new HashMap[String, AbstractNetwork]()
 
-  val dispatchingMap = new HashMap[String, ProtocolNetwork]()
+  def bind(network :AbstractNetwork) :AbstractNetwork = bind(network, network.name)
 
-  def bind(network :ProtocolNetwork, name :String) = { 
+  def bind(network :AbstractNetwork, name :String) :AbstractNetwork = { 
     if(network == null) { 
       throw new NullPointerException("network")
     }
@@ -80,6 +68,10 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
     bs
   }
 
+
+  val remoteSelector = new RemoteSelectionHandler()
+  val reconnector = new ReconnectionHandler(100, copyPipeline)
+  val clientBootstrap = SocketClient.bootstrap(options) { newClientPipeline }
   private def newClientPipeline = { 
     pipeline (
       //new PrintingHandler{ },
@@ -102,18 +94,12 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
     newpipe
   }
 
-  val remoteSelector = new RemoteSelectionHandler()
-  val reconnector = new ReconnectionHandler(100, copyPipeline)
-  val clientBootstrap = { 
-    SocketClient.bootstrap(options) { newClientPipeline }
-  }
-
-  def connectTo(other :ProtocolLocation, localNetwork :ProtocolNetwork, toAppend :ChannelPipeline) :ChannelFuture = { 
+  def connectTo(other :ProtocolLocation, localNetwork :AbstractNetwork, toAppend :ChannelPipeline) :ChannelFuture = { 
 
     println("connecting to "+other+" ")
     //new Exception("").printStackTrace
     
-    val future = clientBootstrap.bind(new InetSocketAddress(port)) 
+    val future = clientBootstrap.bind(localAddress) 
     val channel = future.getChannel
     val pipeline = channel.getPipeline
 
@@ -127,8 +113,21 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
   }
 }
 
-abstract class ProtocolNetwork(name :String, system :NetworkingSystem) { 
-  val localId = new ProtocolLocation(name, system.hostname, system.port)
+
+trait Network { 
+  def sendTo(m :Any, ids :ProtocolLocation*)
+}
+
+abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network { 
+  def name = localId.name
+  var system : NetworkingSystem = _
+
+  def bindTo(toBind :NetworkingSystem) { 
+    if(system != null) 
+      throw new Exception("already bound")
+    system = toBind
+    system.bind(this)
+  }
 
   private val sources = new HashMap[ProtocolLocation,ChannelSource]()
 

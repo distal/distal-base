@@ -1,6 +1,6 @@
 package ch.epfl.lsr.netty.network.akka
 
-import ch.epfl.lsr.netty.network.ProtocolLocation
+import ch.epfl.lsr.netty.protocol.ProtocolLocation
 
 import com.typesafe.config._
 import ch.epfl.lsr.netty.config._
@@ -37,8 +37,13 @@ object ActorWithNetwork {
   }
 }
 
-trait ActorWithNetworkAndConfig extends Actor { 
+trait ActorWithNetwork extends Actor { 
   def network : ActorNetwork
+  override def receive :Receive
+
+}
+
+trait ActorWithNetworkAndConfig extends ActorWithNetwork { 
   def config : Config
 }
 
@@ -46,6 +51,6 @@ abstract class ActorFromConfig(val config :Config) extends ActorWithNetworkAndCo
   val network = { 
     val location = new ProtocolLocation(config.getURI("location"))
     val networkingSystem = ActorWithNetwork.createNetworkingSystem(location)
-    networkingSystem.bind(self, location.name)
+    networkingSystem.bind(self, location)
   }
 }
