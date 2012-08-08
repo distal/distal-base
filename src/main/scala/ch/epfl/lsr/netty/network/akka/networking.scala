@@ -1,23 +1,29 @@
 package ch.epfl.lsr.netty.network.akka
 
 import ch.epfl.lsr.netty.bootstrap._
-import ch.epfl.lsr.netty.channel.{ DispatchingHandler, MessageReceivedHandler, RemoteSelectionHandler, ReconnectionHandler }
-import ch.epfl.lsr.netty.channel.akka.ActorForwardingHandler
+import ch.epfl.lsr.netty.channel._
 import ch.epfl.lsr.netty.codec.kryo._
-import ch.epfl.lsr.netty.util.{ InOrderedPool, ChannelFutures }
+import ch.epfl.lsr.netty.util.{ InDownPool, ChannelFutures }
+import ch.epfl.lsr.netty.util.Timer._
 
 import org.jboss.netty.channel._
 
+import java.util.concurrent.TimeUnit
 
-import akka.actor._
+import _root_.akka.actor._
 
 import scala.collection.mutable.HashMap
 
 import java.net.{ SocketAddress, InetSocketAddress }
 
+case class ProtocolLocation(name :String, host :String, port :Int) { 
+  def this(u :java.net.URI) = this(u.getPath, u.getHost, u.getPort)
+  lazy val getSocketAddress = new InetSocketAddress(host, port)
+}
 
 
 class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,Any]) { 
+  import scala.collection.JavaConversions._
   import implicitConversions._
 
   val localAddress = new InetSocketAddress(hostname, port)
@@ -40,7 +46,7 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
     if(actor == null)
       throw new Exception("null Actor")
     
-    println("binding actor to "+name+" (this="+this+")")
+    println("binding actor to "+name)
     val network = new ActorNetwork(actor, name, this)
     dispatchingMap.synchronized { dispatchingMap.update(name, network) }
     network
@@ -52,15 +58,14 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
     if(network.isEmpty) { 
       None
     } else { 
-      Some(pipeline (
-	network.get.newHandler
-      ))
+      Some(network.get.newPipeline)
     }
   }
 
   val serverBootstrap = { 
     val bs = SocketServer.bootstrap(options) { 
       pipeline (
+	//new PrintingHandler{ },
 	new DispatchingHandler(getPipelineExtension _),
 	// everyone uses kryo, so we can already add that
 	new KryoEncoder(),
@@ -74,6 +79,7 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
 
   private def newClientPipeline = { 
     pipeline (
+      //new PrintingHandler{ },
       reconnector,
       remoteSelector,
       // everyone uses kryo, so we can already add that
@@ -83,7 +89,12 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
   }
 
   private def copyPipeline(oldpipe :ChannelPipeline) :ChannelPipeline = { 
-    val newpipe = newClientPipeline
+    val newpipe = pipeline()
+    
+    for(e <- oldpipe.toMap.entrySet) { 
+      newpipe.addLast(e.getKey, e.getValue)
+    }
+
     RemoteSelectionHandler.copySelectionString(oldpipe, newpipe)
     newpipe
   }
@@ -94,66 +105,84 @@ class NetworkingSystem(val hostname:String, val port:Int, options :Map[String,An
     SocketClient.bootstrap(options) { newClientPipeline }
   }
 
-  def connectTo(other :ActorLocation, localNetwork :ActorNetwork) :ChannelFuture = { 
+  def connectTo(other :ProtocolLocation, localNetwork :ProtocolNetwork, toAppend :ChannelPipeline) :ChannelFuture = { 
 
     println("connecting to "+other+" ")
     //new Exception("").printStackTrace
     
-    val future = clientBootstrap.bind(new InetSocketAddress(port)) // reason for address already in use
+    val future = clientBootstrap.bind(new InetSocketAddress(port)) 
     val channel = future.getChannel
-    val handler = localNetwork.newHandler
+    val pipeline = channel.getPipeline
+
+    for(e <- toAppend.toMap.entrySet) { 
+      pipeline.addLast(localNetwork.toString+"--"+e.getKey, e.getValue)
+    }
+
     RemoteSelectionHandler.setSelectionString(channel.getPipeline,other.name)
-    channel.getPipeline.addLast("actor", handler)
+
     channel.connect(other)
   }
 }
 
+abstract class ProtocolNetwork(name :String, system :NetworkingSystem) { 
+  val localId = new ProtocolLocation(name, system.hostname, system.port)
 
-class ActorNetwork(actor :ActorRef, name: String, system :NetworkingSystem) { 
-  val localId = new ActorLocation(name, system.hostname, system.port)
+  private val sources = new HashMap[ProtocolLocation,ChannelSource]()
 
-  private val contexts = new HashMap[ActorLocation,ChannelHandlerContext]()
-
-  private def addContext(id :ActorLocation, ctx :ChannelHandlerContext) { 
-    contexts.synchronized{ contexts.update(id, ctx) }
+  private def addSource(id :ProtocolLocation, source :ChannelSource) { 
+    sources.synchronized{ sources.update(id, source) }
   }
-  private def getContext(id :ActorLocation) = { 
-    contexts.synchronized{ contexts.get(id) }
+  private def getSource(id :ProtocolLocation) = { 
+    sources.synchronized{ sources.get(id) }
   }
-  
 
-  def sendTo(m :Any, ids :ActorLocation*) :Unit = { 
-    //println("sendTo("+m+", "+ids+")")
+  def sendTo(m :Any, ids :ProtocolLocation*) :Unit = { 
     ids.foreach{ 
       remoteId => 
-	val ctx = getContext(remoteId)
-	if(ctx.nonEmpty) { 
-	  InOrderedPool.write(ctx.get, m)
+	val src = getSource(remoteId)
+	if(src.nonEmpty) { 
+	  InDownPool.write(src.get, m) 
 	} else { 
-	  val future = system.connectTo(remoteId, this)
-	  ChannelFutures.onCompleted(future) { 
-	    f => 
-	      val pipe = f.getChannel.getPipeline
-	      addContext(remoteId, pipe.getContext(pipe.getLast))
-	      sendTo(localId, remoteId) /* tell other side who we are */
-	      sendTo(m , remoteId)
-	  }
+	  val pipeline = newPipeline
+	  val source = pipeline.getLast.asInstanceOf[ChannelSource]
+	  pipeline.addFirst("oneShotSender", new OneShotOnConnectHandler({ 
+	    (ctx :ChannelHandlerContext, e :ChannelStateEvent) => 
+	      println("exec handler")
+	      InDownPool.write(source, localId) /* tell other side who we are */
+	      InDownPool.write(source, m)
+	  }))
+	  addSource(remoteId, source)
+	  system.connectTo(remoteId, this, pipeline)
 	}
     }
     ()
   }
 
+  def onMessageReceived(ctx :ChannelHandlerContext, e :MessageEvent) 
+
   // creates a new Handler (used by system on connect to/from remote)
-  def newHandler = { 
-    new MessageReceivedHandler { 
-      override def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) { 
-	if(e.getMessage.isInstanceOf[ActorLocation]) { 
-	  addContext(e.getMessage.asInstanceOf[ActorLocation], ctx)
-	} else { 
-	  actor ! e.getMessage
+  def newPipeline = {
+    pipeline(
+      new MessageReceivedHandler with ChannelSource { 
+	override def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) { 
+	  println("received "+e.getMessage)
+	  if(e.getMessage.isInstanceOf[ProtocolLocation]) { 
+	    // for the server side
+	    addSource(e.getMessage.asInstanceOf[ProtocolLocation], this)
+	  } else { 
+	    onMessageReceived(ctx, e)
+	  }
 	}
       }
+      )
     }
+}
+
+
+class ActorNetwork(actor :ActorRef, name: String, system :NetworkingSystem) extends ProtocolNetwork(name, system){ 
+  
+  def onMessageReceived(ctx :ChannelHandlerContext, e :MessageEvent) { 
+    actor ! e.getMessage
   }
 }
 

@@ -8,7 +8,7 @@ import akka.actor._
 import java.net.{ SocketAddress, InetSocketAddress }
 
 object implicitConversions { 
-  implicit def ActorLocation2SocketAddress(id :ActorLocation) :SocketAddress = id.getSocketAddress
+  implicit def ProtocolLocation2SocketAddress(id :ProtocolLocation) :SocketAddress = id.getSocketAddress
   implicit def Config2ActorConfig(config :Config) : ActorConfig = new ActorConfig(config)
 }
 
@@ -26,15 +26,10 @@ class ActorConfig(c :Config) {
   }
 }
 
-case class ActorLocation(name :String, host :String, port :Int) { 
-  def this(u :java.net.URI) = this(u.getPath, u.getHost, u.getPort)
-  lazy val getSocketAddress = new InetSocketAddress(host, port)
-}
-
 object ActorWithNetwork { 
   lazy val networkOptions = Configuration.getMap("network")
 
-  def createNetworkingSystem(location :ActorLocation) = { 
+  def createNetworkingSystem(location :ProtocolLocation) = { 
     println("creating network "+location.name)
     new NetworkingSystem(location.getSocketAddress, networkOptions)
   }
@@ -47,7 +42,7 @@ trait ActorWithNetworkAndConfig extends Actor {
 
 abstract class ActorFromConfig(val config :Config) extends ActorWithNetworkAndConfig { 
   val network = { 
-    val location = new ActorLocation(config.getURI("location"))
+    val location = new ProtocolLocation(config.getURI("location"))
     val networkingSystem = ActorWithNetwork.createNetworkingSystem(location)
     networkingSystem.bind(self, location.name)
   }
