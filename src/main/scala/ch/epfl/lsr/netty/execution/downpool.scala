@@ -1,8 +1,9 @@
-package ch.epfl.lsr.netty.util 
+package ch.epfl.lsr.netty.execution
 
 import org.jboss.netty.channel.{ Channels, ChannelHandlerContext, DownstreamMessageEvent }
 import org.jboss.netty.handler.execution.{ OrderedDownstreamThreadPoolExecutor, ChannelDownstreamEventRunnable }
 import ch.epfl.lsr.netty.channel.ChannelSource
+import ch.epfl.lsr.netty.util.{ ChannelFutures }
 
 object InDownPool { 
   import ChannelFutures.implicits._

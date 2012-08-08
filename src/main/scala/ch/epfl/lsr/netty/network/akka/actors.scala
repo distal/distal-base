@@ -1,5 +1,7 @@
 package ch.epfl.lsr.netty.network.akka
 
+import ch.epfl.lsr.netty.network.ProtocolLocation
+
 import com.typesafe.config._
 import ch.epfl.lsr.netty.config._
 
@@ -8,7 +10,7 @@ import akka.actor._
 import java.net.{ SocketAddress, InetSocketAddress }
 
 object implicitConversions { 
-  implicit def ProtocolLocation2SocketAddress(id :ProtocolLocation) :SocketAddress = id.getSocketAddress
+  import ch.epfl.lsr.netty.network.implicitConversions._
   implicit def Config2ActorConfig(config :Config) : ActorConfig = new ActorConfig(config)
 }
 
@@ -31,7 +33,7 @@ object ActorWithNetwork {
 
   def createNetworkingSystem(location :ProtocolLocation) = { 
     println("creating network "+location.name)
-    new NetworkingSystem(location.getSocketAddress, networkOptions)
+    new ActorNetworkingSystem(location.getSocketAddress, networkOptions)
   }
 }
 
