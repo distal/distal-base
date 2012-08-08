@@ -24,11 +24,40 @@ trait EmptyLifeCycleAwareChannelHandler extends LifeCycleAwareChannelHandler {
 }
 
 
-trait PrintingHandler extends MessageReceivedHandler { 
-  override def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) = { 
-    println(e)
+trait PrintingHandler extends SimpleChannelHandler { 
+  val charset = java.nio.charset.Charset.defaultCharset()
 
-    ctx.sendUpstream(e)
+  def print(prefix :String, e :Any, postfix :String) { 
+    if(e.isInstanceOf[MessageEvent]) { 
+      print(prefix, e.asInstanceOf[MessageEvent].getMessage, postfix)
+    } else if(e.isInstanceOf[ChannelBuffer]) { 
+      println(prefix+e.asInstanceOf[ChannelBuffer].toString(charset)+postfix)
+    } else { 
+      println(prefix+e.toString+postfix)
+    }
   }
 
+  def timePostfix = " "+java.text.DateFormat.getTimeInstance.format(new java.util.Date)
+
+  override def handleUpstream(ctx :ChannelHandlerContext, e :ChannelEvent) = { 
+    print(" *U* ", e, timePostfix)
+    println("____ "+e.getChannel.isOpen)
+    //ctx.sendUpstream(e)
+    super.handleUpstream(ctx, e)
+  }
+
+  override def handleDownstream(ctx :ChannelHandlerContext, e :ChannelEvent) = { 
+    print(" +D+ ", e, timePostfix)
+    println("____ "+e.getChannel.isOpen)
+    super.handleDownstream(ctx, e)
+  }
+
+  override def exceptionCaught(ctx :ChannelHandlerContext, e :ExceptionEvent) { 
+    // e.getCause.printStackTrace
+    print(" ^E^ ", e.getCause, timePostfix)
+    println("____ "+e.getChannel.isOpen)
+    e.getCause.printStackTrace
+  }
+
+}
 }
