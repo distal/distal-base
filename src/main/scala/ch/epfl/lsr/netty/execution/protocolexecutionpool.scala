@@ -12,7 +12,8 @@ object InProtocolPool {
     else
       throw new Exception("Not a ProtocolRunnable") 
   }
-  
+
+  def unregister(protocol :Protocol) = pool.removeChildExecutorKey(protocol)
 
   def execute(task :ProtocolRunnable) { 
     pool execute task

@@ -21,7 +21,6 @@ object implicitConversions {
   implicit def ProtocolLocation2SocketAddress(id :ProtocolLocation) :SocketAddress = id.getSocketAddress
 }
 
-
 class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,Any]) { 
   import scala.collection.JavaConversions._
   import implicitConversions._
@@ -32,6 +31,9 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 
   val dispatchingMap = new HashMap[String, AbstractNetwork]()
 
+  def unbind(network :AbstractNetwork) = 
+    dispatchingMap.synchronized { dispatchingMap remove network.name }
+
   def bind(network :AbstractNetwork) :AbstractNetwork = bind(network, network.name)
 
   def bind(network :AbstractNetwork, name :String) :AbstractNetwork = { 
@@ -41,6 +43,14 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
     // println("binding network to "+name)
     dispatchingMap.synchronized { dispatchingMap.update(name, network) }
     network
+  }
+
+  def sendLocal(m :Any, from :ProtocolLocation, remoteIds :ProtocolLocation*) { 
+    remoteIds.foreach { 
+      remoteId =>
+	val network = dispatchingMap.synchronized{ dispatchingMap.get(remoteId.name) }
+        network.get.onMessageReceived(m, from)
+    }
   }
 
   def getPipelineExtension(name :String) : Option[ChannelPipeline] = { 
@@ -56,6 +66,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
   val serverBootstrap = { 
     val bs = SocketServer.bootstrap(options) { 
       pipeline (
+	//new PrintWrittenHandler{ },
 	//new PrintingHandler{ },
 	new DispatchingHandler(getPipelineExtension _),
 	// everyone uses kryo, so we can already add that
@@ -63,7 +74,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 	new KryoDecoder()
       )
     }
-    println("binding "+localAddress)
+    //println("binding "+localAddress)
     bs bind localAddress
     bs
   }
@@ -116,10 +127,12 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 
 trait Network { 
   def sendTo(m :Any, ids :ProtocolLocation*)
+  def close
 }
 
 abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network { 
   def name = localId.name
+  @volatile
   var system : NetworkingSystem = _
 
   def bindTo(toBind :NetworkingSystem) { 
@@ -129,49 +142,64 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
     system.bind(this)
   }
 
+  def close() { 
+    system.unbind(this)
+    sources.synchronized{ 
+      sources.mapValues{ _.close }
+    }
+  }
+
   private val sources = new HashMap[ProtocolLocation,ChannelSource]()
 
   private def addSource(id :ProtocolLocation, source :ChannelSource) { 
     sources.synchronized{ sources.update(id, source) }
   }
   private def getSource(id :ProtocolLocation) = { 
+    
     sources.synchronized{ sources.get(id) }
   }
 
   def sendTo(m :Any, ids :ProtocolLocation*) :Unit = { 
     ids.foreach{ 
       remoteId => 
-	val src = getSource(remoteId)
-	if(src.nonEmpty) { 
-	  InDownPool.write(src.get, m) 
+	if(remoteId.getSocketAddress equals localId.getSocketAddress) { 
+	  system.sendLocal(m, localId, remoteId)
 	} else { 
-	  val pipeline = newPipeline
-	  val source = pipeline.getLast.asInstanceOf[ChannelSource]
-	  pipeline.addFirst("oneShotSender", new OneShotOnConnectHandler({ 
-	    (ctx :ChannelHandlerContext, e :ChannelStateEvent) => 
-	      println("exec handler")
-	      InDownPool.write(source, localId) /* tell other side who we are */
-	      InDownPool.write(source, m)
-	  }))
-	  addSource(remoteId, source)
-	  system.connectTo(remoteId, this, pipeline)
+
+	  val src = getSource(remoteId)
+	  if(src.nonEmpty) { 
+	    InDownPool.write(src.get, m) 
+	  } else { 
+	    val pipeline = newPipeline
+	    val source = pipeline.getLast.asInstanceOf[ChannelSource]
+	      pipeline.addFirst("oneShotSender", new OneShotOnConnectHandler({ 
+		(ctx :ChannelHandlerContext, e :ChannelStateEvent) => 
+		  InDownPool.write(source, localId) /* tell other side who we are */
+		  InDownPool.write(source, m)
+	      }))
+	    addSource(remoteId, source)
+	    system.connectTo(remoteId, this, pipeline)
+	  }
 	}
     }
     ()
   }
 
-  def onMessageReceived(ctx :ChannelSource, e :AnyRef) 
+  def onMessageReceived(e :Any, from :ProtocolLocation) 
 
   // creates a new Pipeline (used by system on connect to/from remote)
   def newPipeline = {
     pipeline(
       new MessageReceivedHandler with ChannelSource { 
+	var remoteLocation :ProtocolLocation = null
+	
 	override def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) { 
 	  if(e.getMessage.isInstanceOf[ProtocolLocation]) { 
 	    // for the server side
-	    addSource(e.getMessage.asInstanceOf[ProtocolLocation], this)
+	    remoteLocation = e.getMessage.asInstanceOf[ProtocolLocation]
+	    addSource(remoteLocation, this)
 	  } else { 
-	    onMessageReceived(this, e.getMessage)
+	    onMessageReceived(e.getMessage, this.remoteLocation)
 	  }
 	}
       }

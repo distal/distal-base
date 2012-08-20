@@ -24,7 +24,7 @@ class ActorNetworkingSystem(addr :InetSocketAddress, options :Map[String,Any]) e
 
 class ActorNetwork(actor :ActorRef, location :ProtocolLocation) extends AbstractNetwork(location) { 
     
-  def onMessageReceived(ctx :ChannelSource, msg :AnyRef) { 
+  def onMessageReceived(msg :Any, from: ProtocolLocation ) { 
     actor ! msg
   }
 }

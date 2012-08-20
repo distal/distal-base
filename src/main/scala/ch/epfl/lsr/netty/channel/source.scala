@@ -1,7 +1,6 @@
 package ch.epfl.lsr.netty.channel
 
-//import org.jboss.netty.channel.{ SimpleChannelHandler, SimpleUpstreamHandler }
-//import org.jboss.netty.channel.{ ChannelHandlerContext, ChannelStateEvent, MessageEvent, ExceptionEvent, LifeCycleAwareChannelHandler }
+import ch.epfl.lsr.netty.protocol.{ ProtocolLocation }
 
 import org.jboss.netty.channel._
 
@@ -9,6 +8,7 @@ import org.jboss.netty.channel._
 trait ChannelSource extends EmptyLifeCycleAwareChannelHandler { 
   @volatile 
   var theContext :ChannelHandlerContext = null
+  def remoteLocation :ProtocolLocation 
 
   override def beforeAdd(ctx :ChannelHandlerContext) { 
     theContext = ctx 
@@ -19,5 +19,9 @@ trait ChannelSource extends EmptyLifeCycleAwareChannelHandler {
       Some(theContext)
     else 
       None
+  }
+
+  def close = { 
+    theContext.getChannel.close
   }
 }

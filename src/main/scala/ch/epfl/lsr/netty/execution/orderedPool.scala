@@ -5,9 +5,13 @@ import java.util.concurrent._
 
 object OrderedThreadPoolExecutor { 
   def newCachedOrderedThreadPool(keyFunction :Runnable=>Object) = { 
-    new OrderedThreadPoolExecutor(0, Integer.MAX_VALUE, 60, TimeUnit.SECONDS, new SynchronousQueue()) { 
+    new OrderedThreadPoolExecutor(0, Integer.MAX_VALUE, 60, TimeUnit.SECONDS, new LinkedBlockingQueue()) { 
        def getChildExecutorKey(task :Runnable) = keyFunction(task)
     }
+  }
+
+  abstract class FixedThreadPool(nthreads :Int) extends OrderedThreadPoolExecutor(nthreads, nthreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue()) { 
+    //def getChildExecutorKey(task :Runnable) = keyFunction(task)
   }
 }
 

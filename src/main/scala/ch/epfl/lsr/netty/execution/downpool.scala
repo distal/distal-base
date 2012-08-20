@@ -4,12 +4,21 @@ import org.jboss.netty.channel.{ Channels, ChannelHandlerContext, DownstreamMess
 import org.jboss.netty.handler.execution.{ OrderedDownstreamThreadPoolExecutor, ChannelDownstreamEventRunnable }
 import ch.epfl.lsr.netty.channel.ChannelSource
 import ch.epfl.lsr.netty.util.{ ChannelFutures }
+import java.nio.channels.ClosedChannelException
 
 object InDownPool { 
   import ChannelFutures.implicits._
 
-  val downPool = new OrderedDownstreamThreadPoolExecutor(Runtime.getRuntime().availableProcessors())
-
+  val downPool = new OrderedThreadPoolExecutor.FixedThreadPool(2*Runtime.getRuntime().availableProcessors()) { 
+    def getChildExecutorKey(task :Runnable) = { 
+      val ch = task.asInstanceOf[ChannelDownstreamEventRunnable].getEvent.getChannel
+      if(!ch.isOpen)
+	throw new ClosedChannelException
+      ch
+    }
+    
+  }
+  
   private def write(ctx :ChannelHandlerContext, msg :Any, onFailure : Function1[Throwable,Unit]) { 
     val ch = ctx.getChannel
     val future = ChannelFutures.onFailure(ch) { 
