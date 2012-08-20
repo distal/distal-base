@@ -2,6 +2,10 @@
 *.log
 *~
 
+# emacs? specific
+\#*\#
+.\#*
+
 # sbt specific
 dist/*
 target/
