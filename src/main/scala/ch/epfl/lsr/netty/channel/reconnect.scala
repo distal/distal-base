@@ -55,7 +55,7 @@ class ReconnectionHandler(reconnectionTimoutMillis :Int, copyPipeline: ChannelPi
     delay(reconnectionTimoutMillis, TimeUnit.MILLISECONDS) { 
       if(getState(ctx).reconnect) { 
 	// reuse the current pipeline and reconnect
- 	// println("reconnecting to "+getState(ctx).remoteAddress +" "+new java.util.Date)
+ 	println("reconnecting to "+getState(ctx).remoteAddress +" "+new java.util.Date)
 	getState(ctx).channelFactory.newChannel(copyPipeline(ctx.getPipeline)).connect(getState(ctx).remoteAddress)
       }
     }

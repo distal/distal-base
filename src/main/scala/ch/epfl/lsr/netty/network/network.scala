@@ -38,7 +38,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
     if(network == null) { 
       throw new NullPointerException("network")
     }
-    println("binding network to "+name)
+    // println("binding network to "+name)
     dispatchingMap.synchronized { dispatchingMap.update(name, network) }
     network
   }
@@ -93,10 +93,10 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
     RemoteSelectionHandler.copySelectionString(oldpipe, newpipe)
     newpipe
   }
-
+  
   def connectTo(other :ProtocolLocation, localNetwork :AbstractNetwork, toAppend :ChannelPipeline) :ChannelFuture = { 
 
-    println("connecting to "+other+" ")
+    //println("connecting to "+other+" ")
     //new Exception("").printStackTrace
     
     val future = clientBootstrap.bind(localAddress) 

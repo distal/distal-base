@@ -66,7 +66,6 @@ trait PrintingHandler extends SimpleChannelHandler {
 class OneShotOnConnectHandler(task : (ChannelHandlerContext,ChannelStateEvent)=>Unit) extends SimpleChannelUpstreamHandler {
      
   override def channelConnected(ctx :ChannelHandlerContext, e :ChannelStateEvent) { 
-    println("one shot channel Connected")
     task(ctx, e)
     super.channelConnected(ctx, e)
     ctx.getPipeline.remove(this)

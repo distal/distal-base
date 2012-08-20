@@ -19,7 +19,7 @@ class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends Deli
       return null 
     
     val line = frame.asInstanceOf[ChannelBuffer].toString(Charset.defaultCharset)
-    println("getting extension for "+line+" from "+ch.getRemoteAddress)
+    // println("getting extension for "+line+" from "+ch.getRemoteAddress)
 
     val optionallyAppend :Option[ChannelPipeline] = dispatch(line)
 
@@ -38,7 +38,7 @@ class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends Deli
       pipeline remove this
     }
 
-    println("readable: "+cb.readableBytes)
+//    println("readable: "+cb.readableBytes)
     cb.readBytes(cb.readableBytes)
   }
 
@@ -69,7 +69,6 @@ class RemoteSelectionHandler extends SimpleChannelHandler  {
   def getSelectionString(ctx :ChannelHandlerContext) = ctx.getAttachment.asInstanceOf[String]
 
   override def channelConnected(ctx :ChannelHandlerContext, e :ChannelStateEvent) { 
-    println("selection connected")
     super.channelConnected(ctx, e)
   }
 
@@ -79,7 +78,6 @@ class RemoteSelectionHandler extends SimpleChannelHandler  {
 	val buffer =
 	  // basicly copied from netty's StringEncoder
 	  copiedBuffer(ctx.getChannel.getConfig.getBufferFactory.getDefaultOrder, getSelectionString(ctx)+"\n", Charset.defaultCharset)
-	println("selection connector future (writing selection stream)")
 	// send write event downstream
 	Channels.write(ctx, Channels.succeededFuture(e.getChannel), buffer)
     }
