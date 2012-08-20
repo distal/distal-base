@@ -1,4 +1,4 @@
-name := "netty-async-rounds"
+name := "lsr-netty-protocols-base"
 
 organization := "ch.epfl.lsr"
 
@@ -21,6 +21,5 @@ libraryDependencies += "com.typesafe.akka" % "akka-actor" % "2.0"
 libraryDependencies += "com.typesafe" % "config" % "0.5.0"
 
 libraryDependencies += "com.romix.akka" % "akka-kryo-serialization" % "0.1-SNAPSHOT"
-
 
 fork := true
