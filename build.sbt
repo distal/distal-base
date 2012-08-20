@@ -16,10 +16,10 @@ libraryDependencies += "io.netty" % "netty" % "3.5.2.Final"
 
 libraryDependencies += "ch.epfl.lsr" %% "netty-codec-kryo" % "0.1"
 
-libraryDependencies += "com.typesafe.akka" % "akka-actor" % "2.0"
+// libraryDependencies += "com.typesafe.akka" % "akka-actor" % "2.0"
 
 libraryDependencies += "com.typesafe" % "config" % "0.5.0"
 
-libraryDependencies += "com.romix.akka" % "akka-kryo-serialization" % "0.1-SNAPSHOT"
+// libraryDependencies += "com.romix.akka" % "akka-kryo-serialization" % "0.1-SNAPSHOT"
 
 fork := true
