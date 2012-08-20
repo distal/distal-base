@@ -25,6 +25,11 @@ trait EmptyLifeCycleAwareChannelHandler extends LifeCycleAwareChannelHandler {
   def beforeRemove(ctx :ChannelHandlerContext) {}
 }
 
+trait PrintWrittenHandler extends SimpleChannelHandler { 
+  override def writeComplete(ctx :ChannelHandlerContext, e :WriteCompletionEvent) { 
+    println(e.getWrittenAmount)
+  }
+}
 
 trait PrintingHandler extends SimpleChannelHandler { 
   val charset = java.nio.charset.Charset.defaultCharset()
