@@ -16,7 +16,6 @@ object InDownPool {
 	throw new ClosedChannelException
       ch
     }
-    
   }
   
   private def write(ctx :ChannelHandlerContext, msg :Any, onFailure : Function1[Throwable,Unit]) { 
@@ -25,9 +24,9 @@ object InDownPool {
       f => 
 	onFailure(f.getCause)
     }
-    ChannelFutures.onCompleted(ch) { f =>
-      println("successfully sent("+msg+")")
-    }
+    // ChannelFutures.onCompleted(ch) { f =>
+    //   println("successfully sent("+msg+")")
+    // }
 
     val event = new DownstreamMessageEvent(ch, future, msg, null)
 
@@ -35,8 +34,10 @@ object InDownPool {
       override def doRun() { 
 	try { 
 	  super.doRun
+	  // println("ran for "+msg)
 	} catch { 
 	  case t :Throwable => 
+	    println("caught "+t+" while running for "+msg)
 	    println(t.getClass)
 	    onFailure(t)
 	  // throw t
@@ -52,8 +53,8 @@ object InDownPool {
 
   def write(source :ChannelSource, msg :Any) { 
     source.getCurrentContext match { 
-      case Some(ctx) => write(ctx, msg); true
-      case None => false
+      case Some(ctx) => write(ctx, msg)
+      case None => println("failed to write "+msg+" (context unavailable)")
     }
   }
 }

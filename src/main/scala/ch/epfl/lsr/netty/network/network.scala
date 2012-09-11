@@ -18,7 +18,7 @@ import java.net.{ SocketAddress, InetSocketAddress }
 
 object implicitConversions { 
   import _root_.ch.epfl.lsr.netty.protocol.implicitConversions._
-  implicit def ProtocolLocation2SocketAddress(id :ProtocolLocation) :SocketAddress = id.getSocketAddress
+  //implicit def ProtocolLocation2SocketAddress(id :ProtocolLocation) :SocketAddress = id.getSocketAddress
 }
 
 class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,Any]) { 
@@ -85,6 +85,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
   val clientBootstrap = SocketClient.bootstrap(options) { newClientPipeline }
   private def newClientPipeline = { 
     pipeline (
+      //new PrintWrittenHandler{ },
       //new PrintingHandler{ },
       reconnector,
       remoteSelector,
@@ -120,7 +121,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 
     RemoteSelectionHandler.setSelectionString(channel.getPipeline,other.name)
 
-    channel.connect(other)
+    channel.connect(other.getSocketAddress)
   }
 }
 
@@ -172,10 +173,11 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
 	  } else { 
 	    val pipeline = newPipeline
 	    val source = pipeline.getLast.asInstanceOf[ChannelSource]
-	      pipeline.addFirst("oneShotSender", new OneShotOnConnectHandler({ 
-		(ctx :ChannelHandlerContext, e :ChannelStateEvent) => 
-		  InDownPool.write(source, localId) /* tell other side who we are */
-		  InDownPool.write(source, m)
+	    source.setRemoteLocation(remoteId)
+	    pipeline.addFirst("oneShotSender", new OneShotOnConnectHandler({ 
+	      (ctx :ChannelHandlerContext, e :ChannelStateEvent) => 
+		InDownPool.write(source, localId) /* tell other side who we are */
+		InDownPool.write(source, m)
 	      }))
 	    addSource(remoteId, source)
 	    system.connectTo(remoteId, this, pipeline)
@@ -191,12 +193,23 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
   def newPipeline = {
     pipeline(
       new MessageReceivedHandler with ChannelSource { 
-	var remoteLocation :ProtocolLocation = null
-	
+	@volatile
+	var theRemoteLocation :ProtocolLocation = null
+	lazy val remoteLocation = { 
+	  if(theRemoteLocation == null) 
+	    throw new Exception("theRemote == null")
+	  else 
+	    theRemoteLocation
+	}
+	  
+	def setRemoteLocation(remote :ProtocolLocation) { 
+	  theRemoteLocation = remote
+	}
+
 	override def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) { 
 	  if(e.getMessage.isInstanceOf[ProtocolLocation]) { 
 	    // for the server side
-	    remoteLocation = e.getMessage.asInstanceOf[ProtocolLocation]
+	    theRemoteLocation = e.getMessage.asInstanceOf[ProtocolLocation]
 	    addSource(remoteLocation, this)
 	  } else { 
 	    onMessageReceived(e.getMessage, this.remoteLocation)

@@ -9,6 +9,7 @@ trait ChannelSource extends EmptyLifeCycleAwareChannelHandler {
   @volatile 
   var theContext :ChannelHandlerContext = null
   def remoteLocation :ProtocolLocation 
+  def setRemoteLocation(remote :ProtocolLocation) :Unit
 
   override def beforeAdd(ctx :ChannelHandlerContext) { 
     theContext = ctx 

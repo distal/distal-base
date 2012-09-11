@@ -14,7 +14,6 @@ import java.net.{ InetSocketAddress }
 object implicitConversions { 
   class InetSocketAddressWithPath(addr :InetSocketAddress) { 
     def /(s :String) = { new ProtocolLocation(if(s startsWith "/") s else ("/"+s), addr) }}
-  implicit def ProtocolLocation2SocketAddress(id :ProtocolLocation) :InetSocketAddress = id.getSocketAddress
   implicit def InetSocketAddress2InetWithPath(addr :InetSocketAddress) :InetSocketAddressWithPath = new InetSocketAddressWithPath(addr)
 }
 
@@ -44,16 +43,16 @@ class AlreadyShutdownException extends Exception
 
 trait Protocol {
   @volatile
-  private var isShutdown = false
-  lazy val theNetwork :Network = Protocol.getBoundNetwork(this)
+  private var _isShutdown = false
+  private lazy val _theNetwork :Network = Protocol.getBoundNetwork(this)
   
-  def network : Network = theNetwork
+  def network : Network = _theNetwork
   def location :ProtocolLocation
 
   def getConfig :Option[Config] = None
 
   final def start = { 
-    if(isShutdown)
+    if(_isShutdown)
       throw new AlreadyShutdownException
     network; 
     afterStart
@@ -61,20 +60,24 @@ trait Protocol {
 
   final def shutdown = { 
     beforeShutdown
-    isShutdown = true
+    _isShutdown = true
     InProtocolPool.unregister(this)
     network.close
   }
 
   def inPool(task : =>Unit) { 
-    if(isShutdown)
+    if(_isShutdown)
       throw new AlreadyShutdownException
     InProtocolPool.execute(this, task)
   }
 
   def fireMessageReceived(m :Any, remoteLocation :ProtocolLocation) { 
-    if(isShutdown)
+    if(_isShutdown)
       throw new AlreadyShutdownException
+    if(remoteLocation == null) { 
+      println("null")
+      throw new Exception("remoteLocation == null")
+    }
     inPool(onMessageReceived(m, remoteLocation))
   }
 
@@ -100,7 +103,7 @@ object Protocol {
   def getConfig() = { 
     lock.synchronized { 
       if(config==null)
-	config = Configuration.getMap("networx")
+	config = Configuration.getMap("network")
       config
     }
   }
@@ -108,7 +111,7 @@ object Protocol {
   private def getSystem(addr :InetSocketAddress) = 
     map.synchronized { map.get(addr) }
 
-  private def getSystemOrElseCreate(localAddress :InetSocketAddress, config :Option[Config]) :NetworkingSystem = {
+  private def getSystemOrElseCreate(localAddress :InetSocketAddress, config :Option[Config] = None) :NetworkingSystem = {
     var conf = 
       if(config.nonEmpty) config.get.getMap("network") else null
     if(conf == null)
@@ -127,6 +130,7 @@ object Protocol {
 
   private class ProtocolNetwork(protocol: Protocol) extends AbstractNetwork(protocol.location) { 
     def onMessageReceived(msg :Any, from :ProtocolLocation) { 
+
       // execute the handler in ProtocolPool
       protocol.fireMessageReceived(msg, from)
     }
@@ -146,7 +150,7 @@ object Protocol {
 
   private def getBoundNetwork(protocol :Protocol) = { 
     val network = new ProtocolNetwork(protocol)
-    network.bindTo(getSystemOrElseCreate(protocol.location,protocol.getConfig))
+    network.bindTo(getSystemOrElseCreate(protocol.location.getSocketAddress,protocol.getConfig))
     network
   }
 }

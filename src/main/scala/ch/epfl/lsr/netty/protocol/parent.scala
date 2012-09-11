@@ -34,3 +34,4 @@ abstract class SubProtocol[T](val subId:T, parent :ParentProtocol[T]) extends Pr
     def close = ()
   }  
 }
+

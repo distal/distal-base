@@ -27,7 +27,7 @@ trait EmptyLifeCycleAwareChannelHandler extends LifeCycleAwareChannelHandler {
 
 trait PrintWrittenHandler extends SimpleChannelHandler { 
   override def writeComplete(ctx :ChannelHandlerContext, e :WriteCompletionEvent) { 
-    println(e.getWrittenAmount)
+    println("WROTE "+e.getWrittenAmount+"b")
   }
 }
 
@@ -63,7 +63,7 @@ trait PrintingHandler extends SimpleChannelHandler {
     // e.getCause.printStackTrace
     print(" ^E^ ", e.getCause, timePostfix)
     println("____ "+e.getChannel.isOpen)
-    e.getCause.printStackTrace
+    //e.getCause.printStackTrace
   }
 
 }

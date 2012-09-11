@@ -57,7 +57,7 @@ abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, ke
     
 
     def execute(task :Runnable) { 
-      q.add(task)
+      q.offer(task) // Q has MAX_INT capacity, so offer will always succeed
 
       if(!isRunning.get) { 
 	executeInParentPool(this)

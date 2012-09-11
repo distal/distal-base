@@ -59,5 +59,6 @@ class ReconnectionHandler(reconnectionTimoutMillis :Int, copyPipeline: ChannelPi
 	getState(ctx).channelFactory.newChannel(copyPipeline(ctx.getPipeline)).connect(getState(ctx).remoteAddress)
       }
     }
+    super.channelClosed(ctx, e)
   }
 }
