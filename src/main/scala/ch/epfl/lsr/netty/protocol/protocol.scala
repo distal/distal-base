@@ -55,7 +55,7 @@ trait Protocol {
     if(_isShutdown)
       throw new AlreadyShutdownException
     network; 
-    afterStart
+    inPool(afterStart)
   }
 
   final def shutdown = { 
