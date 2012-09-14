@@ -16,7 +16,7 @@ trait ChannelSource extends EmptyLifeCycleAwareChannelHandler {
   }
   
   def getCurrentContext = { 
-    if(theContext != null && theContext.getChannel.isOpen)
+    if(theContext != null && theContext.getChannel != null && theContext.getChannel.isOpen)
       Some(theContext)
     else 
       None

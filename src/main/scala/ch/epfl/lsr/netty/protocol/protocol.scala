@@ -52,10 +52,12 @@ trait Protocol {
   def getConfig :Option[Config] = None
 
   final def start = { 
-    if(_isShutdown)
-      throw new AlreadyShutdownException
-    network; 
-    inPool(afterStart)
+    inPool { 
+      if(_isShutdown)
+	throw new AlreadyShutdownException
+      network; 
+      afterStart
+    }
   }
 
   final def shutdown = { 
@@ -129,6 +131,7 @@ object Protocol {
   }
 
   private class ProtocolNetwork(protocol: Protocol) extends AbstractNetwork(protocol.location) { 
+
     def onMessageReceived(msg :Any, from :ProtocolLocation) { 
 
       // execute the handler in ProtocolPool
@@ -137,6 +140,7 @@ object Protocol {
 
     // Protocol object knows about locally created ones
     override def sendTo(m :Any, ids :ProtocolLocation*) { 
+
       val bySystem = ids.groupBy { id :ProtocolLocation => Protocol.getSystem(id.getSocketAddress) }
       
       bySystem.foreach { 

@@ -54,7 +54,8 @@ object InDownPool {
   def write(source :ChannelSource, msg :Any) { 
     source.getCurrentContext match { 
       case Some(ctx) => write(ctx, msg)
-      case None => println("failed to write "+msg+" (context unavailable)")
+      case None => 
+	println("failed to write "+msg+" (context unavailable)")
     }
   }
 }
