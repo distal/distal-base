@@ -54,6 +54,8 @@ trait Bootstrapper[T <: Bootstrap] {
   }
 
   def setOptions(bootstrap :T with CanApplyPipeline[T], options:Traversable[(String,Any)]) : T with CanApplyPipeline[T] = { 
+    println("setting options:")
+    options.foreach(o => println("  "+o))
     options.foreach((bootstrap.setOption _).tupled)
     bootstrap
   }
@@ -61,6 +63,7 @@ trait Bootstrapper[T <: Bootstrap] {
 
 object ChannelFactories { 
   private def useNIO(options :Map[String,Any]) :Boolean = { 
+    val rv = 
     if(options==null)
       true
     else { 
@@ -68,7 +71,8 @@ object ChannelFactories {
 	case Some((_, false)) => false
 	case _ => true
       }
-    }
+    } 
+    rv
   }
   
   def server(options :Map[String,Any]) = { 

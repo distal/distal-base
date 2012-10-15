@@ -12,7 +12,7 @@ trait MessageReceivedHandler extends SimpleChannelHandler  {
   def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) 
 
   override def exceptionCaught(ctx :ChannelHandlerContext, e :ExceptionEvent) { 
-    // e.getCause.printStackTrace
+    e.getCause.printStackTrace
     e.getChannel.close
   }
 }
@@ -75,4 +75,5 @@ class OneShotOnConnectHandler(task : (ChannelHandlerContext,ChannelStateEvent)=>
     super.channelConnected(ctx, e)
     ctx.getPipeline.remove(this)
   }
+
 }

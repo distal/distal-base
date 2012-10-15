@@ -3,11 +3,6 @@ package ch.epfl.lsr.netty.util
 import org.jboss.netty.channel.{ ChannelFuture, ChannelFutureListener, Channel, Channels }
 
 object ChannelFutures { 
-  object implicits { 
-    implicit def Channel2Future(c :Channel) :ChannelFuture = ChannelFutures.future(c)
-  }
-  import implicits._
-
   def onCompleted(future :ChannelFuture, handler : =>Unit) :ChannelFuture = { 
     onCompleted(future) { f => handler }
   }

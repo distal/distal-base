@@ -19,7 +19,6 @@ class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends Deli
       return null 
     
     val line = frame.asInstanceOf[ChannelBuffer].toString(Charset.defaultCharset)
-    // println("getting extension for "+line+" from "+ch.getRemoteAddress)
 
     val optionallyAppend :Option[ChannelPipeline] = dispatch(line)
 
@@ -34,7 +33,7 @@ class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends Deli
       for(e <- toAppend.toMap.entrySet) { 
 	pipeline.addLast(this.toString+"Extension"+e.getKey, e.getValue)
       }
-
+      
       pipeline remove this
     }
 
@@ -43,7 +42,6 @@ class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends Deli
   }
 
   override def exceptionCaught(ctx :ChannelHandlerContext, e :ExceptionEvent) { 
-    println("DispatchingHandler "+e.getCause.getStackTrace)
     super.exceptionCaught(ctx, e)
   }
   
