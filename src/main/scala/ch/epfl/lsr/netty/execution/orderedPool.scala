@@ -10,8 +10,12 @@ object OrderedThreadPoolExecutor {
     }
   }
 
-  abstract class FixedThreadPool(nthreads :Int) extends OrderedThreadPoolExecutor(nthreads, nthreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue()) { 
-    //def getChildExecutorKey(task :Runnable) = keyFunction(task)
+  abstract class FixedThreadPool(nthreads :Int) extends OrderedThreadPoolExecutor(nthreads, nthreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue()) 
+
+  def newFixedThreadPool(nthreads :Int, keyFunction :Runnable=>Object) = { 
+    new FixedThreadPool(nthreads) { 
+      def getChildExecutorKey(task :Runnable) = keyFunction(task)
+    }
   }
 }
 
@@ -24,8 +28,6 @@ abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, ke
   }
   def getChildExecutorKey(task :Runnable) : AnyRef
 
-  // execute everything (i.e., get rid of ChannelEvents, ChannelEventRunnables, etc)
-  // mostly copy and paste
   override def execute(task :Runnable) = { 
     getChildExecutor(task).execute(task)    
   }
@@ -57,7 +59,7 @@ abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, ke
     
 
     def execute(task :Runnable) { 
-      q.offer(task) // Q has MAX_INT capacity, so offer will always succeed
+      q.offer(task) 
 
       if(!isRunning.get) { 
 	executeInParentPool(this)
@@ -82,6 +84,7 @@ abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, ke
 	      task.run
 	    } catch { 
 	      case t :Throwable => 
+		println("_____"+t)
 		thrown = t; throw t
 	    } finally { 
 	      afterExecute(task, thrown)
@@ -89,11 +92,10 @@ abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, ke
 	  }
 	} finally { 
 	  isRunning.set(false)
+	  // reschedule for missed tasks
+	  if(q.peek !=null && !isRunning.get)
+	    executeInParentPool(this)
 	}
-	
-	// reschedule for missed tasks
-	if(q.peek !=null && !isRunning.get)
-	  executeInParentPool(this)
       }
     }
     lastRun = now
