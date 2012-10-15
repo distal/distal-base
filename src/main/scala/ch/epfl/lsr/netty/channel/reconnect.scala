@@ -8,7 +8,6 @@ import java.util.concurrent.TimeUnit
 
 import ch.epfl.lsr.netty.util.Timer._
 
-
 object ReconnectionHandler { 
   private def getState(ctx :ChannelHandlerContext) = { 
     var rv = ctx.getAttachment.asInstanceOf[ReconnectionState]
@@ -21,7 +20,7 @@ object ReconnectionHandler {
 
   class ReconnectionState() { 
     @volatile
-    var reconnect = true
+    var reconnect = false
     @volatile
     var remoteAddress :SocketAddress = _
     @volatile
@@ -33,6 +32,13 @@ object ReconnectionHandler {
 class ReconnectionHandler(reconnectionTimoutMillis :Int, copyPipeline: ChannelPipeline=>ChannelPipeline) extends SimpleChannelHandler  { 
   import ReconnectionHandler._
 
+  override def closeRequested(ctx :ChannelHandlerContext , e :ChannelStateEvent) { 
+    getState(ctx).reconnect = false
+
+    println("close requested")
+    
+    super.closeRequested(ctx, e)
+  }
 
   override def disconnectRequested(ctx :ChannelHandlerContext , e :ChannelStateEvent) { 
     getState(ctx).reconnect = false
@@ -44,9 +50,10 @@ class ReconnectionHandler(reconnectionTimoutMillis :Int, copyPipeline: ChannelPi
     val state = getState(ctx)
     state.remoteAddress = e.getValue.asInstanceOf[SocketAddress]
     state.channelFactory = e.getChannel.getFactory
+    state.reconnect = true    
     
     // println("connect requested in reconnector "+e.getChannel)
-    
+
     super.connectRequested(ctx, e)
   }
 
