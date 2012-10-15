@@ -9,22 +9,34 @@ import com.typesafe.config._
 
 import scala.collection.mutable.HashMap
 
-import java.net.{ InetSocketAddress }
+import java.net.{ InetSocketAddress, URI }
 
-object implicitConversions { 
-  class InetSocketAddressWithPath(addr :InetSocketAddress) { 
-    def /(s :String) = { new ProtocolLocation(if(s startsWith "/") s else ("/"+s), addr) }}
-  implicit def InetSocketAddress2InetWithPath(addr :InetSocketAddress) :InetSocketAddressWithPath = new InetSocketAddressWithPath(addr)
+object ImplicitConversions { 
+  // class InetSocketAddressWithPath(addr :InetSocketAddress) { 
+  //   def /(s :String) = { new ProtocolLocation(if(s startsWith "/") s else ("/"+s), addr) }}
+
+//  import language.implicitConversions
+//  implicit def InetSocketAddress2InetWithPath(addr :InetSocketAddress) :InetSocketAddressWithPath = new InetSocketAddressWithPath(addr)
 }
 
-case class ProtocolLocation(name :String, host :String, port :Int) { 
-  def this(u :java.net.URI) = this(u.getPath, u.getHost, u.getPort)
-  def this(name :String, s :InetSocketAddress) = this(name, s.getHostName, s.getPort)
+
+case class ProtocolLocation(str :String) { 
+  val uri = new URI(str)
+//  def this(u :URI) = this(u.toString)
+
+  def name :String = uri.getPath
+  def host :String = uri.getHost
+  def port :Int = OrDefaultPort(uri.getPort)
+  lazy val clazz :Option[Class[_]] = ClassOrNone(uri.getUserInfo)
+
+  def isForClazz(c :Class[_]) = clazz.filter{ _ == c}.nonEmpty
   lazy val getSocketAddress = new InetSocketAddress(host, port)
   def /(s :String) = { 
-    val postfix = if(s startsWith "/") s else "/"+s
-    new ProtocolLocation(name+postfix, host, port)
+    ProtocolLocation(uri.toString+s)
   }
+
+  private def OrDefaultPort(port :Int) = if(port == -1) 2552 else port
+  private def ClassOrNone(s :String) :Option[Class[_]] = if(s==null) None else Some(Class.forName(s))
 }
 
 
@@ -52,11 +64,11 @@ trait Protocol {
   def getConfig :Option[Config] = None
 
   final def start = { 
+    network; 
     inPool { 
       if(_isShutdown)
 	throw new AlreadyShutdownException
-      network; 
-      afterStart
+    	afterStart
     }
   }
 
@@ -72,6 +84,8 @@ trait Protocol {
       throw new AlreadyShutdownException
     InProtocolPool.execute(this, task)
   }
+
+  def isShutdown = _isShutdown
 
   def fireMessageReceived(m :Any, remoteLocation :ProtocolLocation) { 
     if(_isShutdown)
@@ -89,7 +103,7 @@ trait Protocol {
 }
 
 object Protocol { 
-  import implicitConversions._
+  import ImplicitConversions._
   
   private val map = HashMap.empty[InetSocketAddress, NetworkingSystem]
   private val lock = new Object
