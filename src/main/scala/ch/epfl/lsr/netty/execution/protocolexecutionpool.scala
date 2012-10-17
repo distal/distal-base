@@ -2,9 +2,10 @@ package ch.epfl.lsr.netty.execution
 
 import ch.epfl.lsr.netty.protocol._
 import java.lang.Runnable
+  import ch.epfl.lsr.util.execution.Executors
 
 object InProtocolPool { 
-  private val pool = OrderedThreadPoolExecutor.newCachedOrderedThreadPool(extractProtocol _)
+  private val pool = Executors.newCachedOrderedThreadPoolExecutor(extractProtocol _, "Protocols")
   
   private def extractProtocol(task :Runnable) :Protocol = { 
     if(task.isInstanceOf[ProtocolRunnable])

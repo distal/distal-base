@@ -5,7 +5,6 @@ import ch.epfl.lsr.netty.protocol.{ ProtocolLocation }
 import ch.epfl.lsr.netty.execution.InDownPool
 
 import org.jboss.netty.channel._
-import ch.epfl.lsr.netty.protocol.
 import ch.epfl.lsr.netty.util.{ ChannelFutures }
 import java.net.{ SocketAddress, InetSocketAddress }
 

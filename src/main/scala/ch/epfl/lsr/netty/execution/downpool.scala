@@ -33,7 +33,9 @@ class DownStreamRunnable(val source :ChannelSource, msg :Any) extends Runnable {
 
 
 object InDownPool { 
-  private val downPool =  OrderedThreadPoolExecutor.newFixedThreadPool(2*Runtime.getRuntime().availableProcessors(), getSource _)  
+  import ch.epfl.lsr.util.execution.Executors
+
+  private val downPool =  Executors.newFixedThreadPoolExecutor(Runtime.getRuntime().availableProcessors(), getSource _, "DownPool")  
     
   private def getSource(runnable :Runnable) = runnable.asInstanceOf[DownStreamRunnable].source
   

@@ -62,6 +62,12 @@ trait Bootstrapper[T <: Bootstrap] {
 }
 
 object ChannelFactories { 
+  import ch.epfl.lsr.util.execution.{ Executors => E }
+
+  val IOBoss =   E.newCachedThreadPoolExecutor("IOBoss")
+  val IOWorker = E.newCachedThreadPoolExecutor("IOWorker")
+
+
   private def useNIO(options :Map[String,Any]) :Boolean = { 
     val rv = 
     if(options==null)
@@ -77,22 +83,22 @@ object ChannelFactories {
   
   def server(options :Map[String,Any]) = { 
     useNIO(options) match { 
-      case false => new OioServerSocketChannelFactory()
-      case _ => new NioServerSocketChannelFactory()
+      case false => new OioServerSocketChannelFactory(IOBoss, IOWorker)
+      case _ => new NioServerSocketChannelFactory(IOBoss, IOWorker)
     }
   }
 
   def client(options :Map[String,Any]) = { 
     useNIO(options) match { 
-      case false => new OioClientSocketChannelFactory()
-      case _ => new NioClientSocketChannelFactory()
+      case false => new OioClientSocketChannelFactory(IOWorker)
+      case _ => new NioClientSocketChannelFactory(IOBoss, IOWorker)
     }
   }
 
   def datagram(options :Map[String,Any]) = { 
     useNIO(options) match { 
-      case false => new OioDatagramChannelFactory()
-      case _ => new NioDatagramChannelFactory()
+      case false => new OioDatagramChannelFactory(IOWorker)
+      case _ => new NioDatagramChannelFactory(IOWorker)
     }
   }
 

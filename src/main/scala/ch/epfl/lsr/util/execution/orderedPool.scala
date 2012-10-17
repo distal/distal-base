@@ -1,25 +1,9 @@
-package ch.epfl.lsr.netty.execution
-
+package ch.epfl.lsr.util.execution
 
 import java.util.concurrent._
 
-object OrderedThreadPoolExecutor { 
-  def newCachedOrderedThreadPool(keyFunction :Runnable=>Object) = { 
-    new OrderedThreadPoolExecutor(0, Integer.MAX_VALUE, 60, TimeUnit.SECONDS, new LinkedBlockingQueue()) { 
-       def getChildExecutorKey(task :Runnable) = keyFunction(task)
-    }
-  }
 
-  abstract class FixedThreadPool(nthreads :Int) extends OrderedThreadPoolExecutor(nthreads, nthreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue()) 
-
-  def newFixedThreadPool(nthreads :Int, keyFunction :Runnable=>Object) = { 
-    new FixedThreadPool(nthreads) { 
-      def getChildExecutorKey(task :Runnable) = keyFunction(task)
-    }
-  }
-}
-
-abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, keepAlive:Long, timeUnit :TimeUnit, workQueue :BlockingQueue[Runnable]) extends ThreadPoolExecutor(corePoolSize, maxPoolSize, keepAlive, timeUnit, workQueue) { 
+abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, keepAlive:Long, timeUnit :TimeUnit, workQueue :BlockingQueue[Runnable], name :String) extends ThreadPoolExecutor(corePoolSize, maxPoolSize, keepAlive, timeUnit, workQueue, ThreadFactories.newNamedThreadFactory(name)) { 
   
   val childExecutors = new ConcurrentHashMap[AnyRef, ChildExecutor]()
   
