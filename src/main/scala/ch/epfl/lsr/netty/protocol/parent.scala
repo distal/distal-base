@@ -31,6 +31,9 @@ abstract class SubProtocol[T](val subId:T, parent :ParentProtocol[T]) extends Pr
     def sendTo(m: Any, ids: ProtocolLocation*) { 
       parent.network.sendTo(parent.Envelope(subId, m), ids :_*)
     }
+    def forwardTo(m :Any, to :ProtocolLocation, from :ProtocolLocation) { 
+      throw new UnsupportedOperationException("SubProtocol.Network.forwardTo")
+    }
     def close = ()
   }  
 }

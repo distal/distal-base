@@ -9,7 +9,8 @@ import _root_.ch.epfl.lsr.netty.protocol.{ ProtocolLocation }
 
 import org.jboss.netty.channel._
 
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{ TimeUnit }
+import java.util.concurrent.atomic.AtomicReference
 
 import scala.collection.mutable.HashMap
 
@@ -18,6 +19,26 @@ import java.net.{ SocketAddress, InetSocketAddress }
 object ImplicitConversions { 
   import ch.epfl.lsr.netty.protocol.ImplicitConversions._
   //implicit def ProtocolLocation2SocketAddress(id :ProtocolLocation) :SocketAddress = id.getSocketAddress
+}
+
+object NetworkingSystem { 
+  private var systems = new AtomicReference(collection.immutable.HashMap.empty[ProtocolLocation, AbstractNetwork])
+
+  def register(loc :ProtocolLocation, net :AbstractNetwork) { 
+    val oldsys = systems.get
+    if(! systems.compareAndSet(oldsys, oldsys.updated(loc, net))) { 
+       println("retrying to register")
+       register(loc, net)
+    }
+  }
+  
+  def isLocal(loc :ProtocolLocation) = { 
+    systems.get.contains(loc)
+  }
+
+  def sendLocal(m: Any, to :ProtocolLocation, from :ProtocolLocation) { 
+    systems.get.apply(to).onMessageReceived(m, from)
+  }
 }
 
 class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,Any]) { 
@@ -40,6 +61,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
       throw new NullPointerException("network")
     }
 
+    NetworkingSystem.register(network.localId, network)
     dispatchingMap.synchronized { dispatchingMap.update(name, network) }
     network
   }
@@ -121,6 +143,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 
 trait Network { 
   def sendTo(m :Any, ids :ProtocolLocation*)
+  def forwardTo(m :Any, to :ProtocolLocation, from :ProtocolLocation) 
   def close
 }
 
@@ -184,11 +207,18 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
     }
   }
 
+  def forwardTo(m :Any, to :ProtocolLocation, from :ProtocolLocation) = { 
+    assume(NetworkingSystem.isLocal(to), "forwarding is only supported for local protocols")
+    NetworkingSystem.sendLocal(m, to, from)
+  }
+
   def sendTo(m :Any, ids :ProtocolLocation*) :Unit = { 
     ids.foreach{ 
       remoteId => 
-	if(remoteId.getSocketAddress equals localId.getSocketAddress) { 
-	  system.sendLocal(m, localId, remoteId)
+
+	if(NetworkingSystem.isLocal(remoteId)) { 
+	  println("local: "+m+" to "+remoteId)
+	  NetworkingSystem.sendLocal(m, localId, remoteId)
 	} else { 
 	  getOrCreateSource(remoteId).write(m)
 	}
