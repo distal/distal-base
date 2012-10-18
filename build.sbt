@@ -14,10 +14,6 @@ resolvers += "Typesafe Snapshots Repository" at "http://repo.typesafe.com/typesa
 
 libraryDependencies += "io.netty" % "netty" % "3.5.2.Final"
 
-libraryDependencies += "ch.epfl.lsr" %% "netty-codec-kryo" % "0.1"
-
 libraryDependencies += "com.typesafe" % "config" % "0.5.0"
 
 fork := true
-
-// libraryDependencies ++= "org.scala-lang" % "scala-reflect" % "2.10.0-M5"
