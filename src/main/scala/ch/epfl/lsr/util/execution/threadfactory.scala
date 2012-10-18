@@ -11,7 +11,7 @@ object ThreadFactories {
 
       def newThread(r :Runnable) = {
 	count = count + 1
-	new Thread(group, r, name +"-"+ count)
+	new Thread(group, r, name +"-"+ count) 
       }
     }
   }
