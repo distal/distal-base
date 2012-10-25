@@ -16,4 +16,6 @@ libraryDependencies += "io.netty" % "netty" % "3.5.2.Final"
 
 libraryDependencies += "com.typesafe" % "config" % "0.5.0"
 
+libraryDependencies += "com.esotericsoftware.kryo" % "kryo" % "2.19"
+
 fork := true

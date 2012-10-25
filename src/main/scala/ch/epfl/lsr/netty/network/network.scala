@@ -145,6 +145,9 @@ trait Network {
   def sendTo(m :Any, ids :ProtocolLocation*)
   def forwardTo(m :Any, to :ProtocolLocation, from :ProtocolLocation) 
   def close
+  
+  
+  def onMessageReceived(msg :Any, from :ProtocolLocation)
 }
 
 abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network { 
@@ -215,9 +218,7 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
   def sendTo(m :Any, ids :ProtocolLocation*) :Unit = { 
     ids.foreach{ 
       remoteId => 
-
 	if(NetworkingSystem.isLocal(remoteId)) { 
-	  println("local: "+m+" to "+remoteId)
 	  NetworkingSystem.sendLocal(m, localId, remoteId)
 	} else { 
 	  getOrCreateSource(remoteId).write(m)
