@@ -1,6 +1,6 @@
 package ch.epfl.lsr.netty.channel
 
-import ch.epfl.lsr.netty.protocol.{ ProtocolLocation }
+import ch.epfl.lsr.netty.network.{ ProtocolLocation }
 
 import ch.epfl.lsr.netty.execution.InDownPool
 

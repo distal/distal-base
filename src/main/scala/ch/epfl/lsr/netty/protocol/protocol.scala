@@ -1,6 +1,6 @@
 package ch.epfl.lsr.netty.protocol
 
-import ch.epfl.lsr.netty.network.{ AbstractNetwork, Network, NetworkingSystem }
+import ch.epfl.lsr.netty.network.{ AbstractNetwork, NetworkingSystem }
 import ch.epfl.lsr.netty.channel.ChannelSource
 import ch.epfl.lsr.netty.execution.InProtocolPool
 
@@ -19,24 +19,8 @@ object ImplicitConversions {
 //  implicit def InetSocketAddress2InetWithPath(addr :InetSocketAddress) :InetSocketAddressWithPath = new InetSocketAddressWithPath(addr)
 }
 
-
-case class ProtocolLocation(str :String) { 
-  val uri = new URI(str)
-//  def this(u :URI) = this(u.toString)
-
-  def name :String = uri.getPath
-  def host :String = uri.getHost
-  def port :Int = OrDefaultPort(uri.getPort)
-  lazy val clazz :Option[Class[_]] = ClassOrNone(uri.getUserInfo)
-
-  def isForClazz(c :Class[_]) = clazz.filter{ _ == c}.nonEmpty
-  lazy val getSocketAddress = new InetSocketAddress(host, port)
-  def /(s :String) = { 
-    ProtocolLocation(uri.toString+s)
-  }
-
-  private def OrDefaultPort(port :Int) = if(port == -1) 2552 else port
-  private def ClassOrNone(s :String) :Option[Class[_]] = if(s==null) None else Some(Class.forName(s))
+trait ProtocolLocation { 
+  def scheme :String
 }
 
 
@@ -56,7 +40,7 @@ class AlreadyShutdownException extends Exception
 trait Protocol {
   @volatile
   private var _isShutdown = false
-  private lazy val _theNetwork :Network = Protocol.getBoundNetwork(this)
+  private lazy val _theNetwork :Network = NetworkFactory.newNetwork(location, this)
   
   def network : Network = _theNetwork
   def location :ProtocolLocation
@@ -144,7 +128,10 @@ object Protocol {
     }
   }
 
-  private class ProtocolNetwork(protocol: Protocol) extends AbstractNetwork(protocol.location) { 
+  import ch.epfl.lsr.netty.network.{ ProtocolLocation => DefaultProtocolLocation}
+
+  private class DefaultProtocolNetwork(location :DefaultProtocolLocation, protocol: Protocol) extends AbstractNetwork(location) { 
+
 
     def onMessageReceived(msg :Any, from :ProtocolLocation) { 
 
@@ -154,8 +141,9 @@ object Protocol {
 
     // Protocol object knows about locally created ones
     override def sendTo(m :Any, ids :ProtocolLocation*) { 
+      val locations = ids.asInstanceOf[Seq[DefaultProtocolLocation]]
 
-      val bySystem = ids.groupBy { id :ProtocolLocation => Protocol.getSystem(id.getSocketAddress) }
+      val bySystem = locations.groupBy { loc :DefaultProtocolLocation => Protocol.getSystem(loc.getSocketAddress) }
       
       bySystem.foreach { 
 	case (Some(system),locals) =>
@@ -166,10 +154,11 @@ object Protocol {
     }
   }
 
-  private def getBoundNetwork(protocol :Protocol) = { 
-    val network = new ProtocolNetwork(protocol)
-    network.bindTo(getSystemOrElseCreate(protocol.location.getSocketAddress,protocol.getConfig))
-    network
+  val defaultCreator :NetworkFactory.Creator = { 
+    (location,protocol) => 
+      new DefaultProtocolNetwork(location.asInstanceOf[DefaultProtocolLocation], protocol)
   }
+
+  NetworkFactory.registerScheme("lsr", defaultCreator)
 }
 

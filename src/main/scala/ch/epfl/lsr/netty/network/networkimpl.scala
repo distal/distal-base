@@ -1,11 +1,12 @@
 package ch.epfl.lsr.netty.network
 
-import _root_.ch.epfl.lsr.netty.bootstrap._
-import _root_.ch.epfl.lsr.netty.channel._
-import _root_.ch.epfl.lsr.netty.codec.kryo._
-import _root_.ch.epfl.lsr.netty.util.{ ChannelFutures }
-import _root_.ch.epfl.lsr.netty.util.Timer._
-import _root_.ch.epfl.lsr.netty.protocol.{ ProtocolLocation }
+import ch.epfl.lsr.netty.bootstrap._
+import ch.epfl.lsr.netty.channel._
+import ch.epfl.lsr.netty.codec.kryo._
+import ch.epfl.lsr.netty.util.{ ChannelFutures }
+import ch.epfl.lsr.netty.util.Timer._
+import ch.epfl.lsr.netty.protocol.{ ProtocolLocation => ProtocolLocationBase }
+import ch.epfl.lsr.netty.protocol.{ Network => Network }
 
 import org.jboss.netty.channel._
 
@@ -14,7 +15,29 @@ import java.util.concurrent.atomic.AtomicReference
 
 import scala.collection.mutable.HashMap
 
-import java.net.{ SocketAddress, InetSocketAddress }
+import java.net.{ SocketAddress, InetSocketAddress, URI }
+
+case class ProtocolLocation(str :String) extends ProtocolLocationBase { 
+  val scheme = "lsr"
+
+  val uri = new URI(str)
+//  def this(u :URI) = this(u.toString)
+
+  def name :String = uri.getPath
+  def host :String = uri.getHost
+  def port :Int = OrDefaultPort(uri.getPort)
+  lazy val clazz :Option[Class[_]] = ClassOrNone(uri.getUserInfo)
+
+  def isForClazz(c :Class[_]) = clazz.filter{ _ == c}.nonEmpty
+  lazy val getSocketAddress = new InetSocketAddress(host, port)
+  def /(s :String) = { 
+    ProtocolLocation(uri.toString+s)
+  }
+
+  private def OrDefaultPort(port :Int) = if(port == -1) 2552 else port
+  private def ClassOrNone(s :String) :Option[Class[_]] = if(s==null) None else Some(Class.forName(s))
+}
+
 
 object ImplicitConversions { 
   import ch.epfl.lsr.netty.protocol.ImplicitConversions._
@@ -22,7 +45,7 @@ object ImplicitConversions {
 }
 
 object NetworkingSystem { 
-  private var systems = new AtomicReference(collection.immutable.HashMap.empty[ProtocolLocation, AbstractNetwork])
+  private var systems = new AtomicReference(collection.immutable.HashMap.empty[ProtocolLocationBase, AbstractNetwork])
 
   def register(loc :ProtocolLocation, net :AbstractNetwork) { 
     val oldsys = systems.get
@@ -32,11 +55,11 @@ object NetworkingSystem {
     }
   }
   
-  def isLocal(loc :ProtocolLocation) = { 
+  def isLocal(loc :ProtocolLocationBase) = { 
     systems.get.contains(loc)
   }
 
-  def sendLocal(m: Any, to :ProtocolLocation, from :ProtocolLocation) { 
+  def sendLocal(m: Any, to :ProtocolLocationBase, from :ProtocolLocationBase) { 
     systems.get.apply(to).onMessageReceived(m, from)
   }
 }
@@ -141,15 +164,6 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 }
 
 
-trait Network { 
-  def sendTo(m :Any, ids :ProtocolLocation*)
-  def forwardTo(m :Any, to :ProtocolLocation, from :ProtocolLocation) 
-  def close
-  
-  
-  def onMessageReceived(msg :Any, from :ProtocolLocation)
-}
-
 abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network { 
   def name = localId.name
   @volatile
@@ -210,24 +224,22 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
     }
   }
 
-  def forwardTo(m :Any, to :ProtocolLocation, from :ProtocolLocation) = { 
+  def forwardTo(m :Any, to :ProtocolLocationBase, from :ProtocolLocationBase) = { 
     assume(NetworkingSystem.isLocal(to), "forwarding is only supported for local protocols")
     NetworkingSystem.sendLocal(m, to, from)
   }
 
-  def sendTo(m :Any, ids :ProtocolLocation*) :Unit = { 
+  def sendTo(m :Any, ids :ProtocolLocationBase*) :Unit = { 
     ids.foreach{ 
       remoteId => 
 	if(NetworkingSystem.isLocal(remoteId)) { 
 	  NetworkingSystem.sendLocal(m, localId, remoteId)
 	} else { 
-	  getOrCreateSource(remoteId).write(m)
+	  getOrCreateSource(remoteId.asInstanceOf[ProtocolLocation]).write(m)
 	}
     }
     ()
   }
-
-  def onMessageReceived(e :Any, from :ProtocolLocation) 
 
   // creates a new Pipeline (used by system on connect to/from remote)
   def newPipeline =
