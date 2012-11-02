@@ -1,4 +1,4 @@
-package ch.epfl.lsr.netty.util 
+package ch.epfl.lsr.util.execution
 
 import org.jboss.netty.util.{ HashedWheelTimer, TimerTask, Timeout }
 

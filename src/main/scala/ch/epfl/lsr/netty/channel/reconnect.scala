@@ -6,7 +6,7 @@ import org.jboss.netty.bootstrap.ClientBootstrap
 import java.net.SocketAddress
 import java.util.concurrent.TimeUnit
 
-import ch.epfl.lsr.netty.util.Timer._
+import ch.epfl.lsr.util.execution.Timer._
 
 object ReconnectionHandler { 
   private def getState(ctx :ChannelHandlerContext) = { 

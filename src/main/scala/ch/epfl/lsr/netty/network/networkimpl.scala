@@ -4,7 +4,6 @@ import ch.epfl.lsr.netty.bootstrap._
 import ch.epfl.lsr.netty.channel._
 import ch.epfl.lsr.netty.codec.kryo._
 import ch.epfl.lsr.netty.util.{ ChannelFutures }
-import ch.epfl.lsr.netty.util.Timer._
 import ch.epfl.lsr.protocol.{ ProtocolLocation => ProtocolLocationBase, Network => Network }
 
 import org.jboss.netty.channel._
