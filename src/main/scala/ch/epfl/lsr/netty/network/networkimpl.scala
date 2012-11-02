@@ -5,8 +5,7 @@ import ch.epfl.lsr.netty.channel._
 import ch.epfl.lsr.netty.codec.kryo._
 import ch.epfl.lsr.netty.util.{ ChannelFutures }
 import ch.epfl.lsr.netty.util.Timer._
-import ch.epfl.lsr.netty.protocol.{ ProtocolLocation => ProtocolLocationBase }
-import ch.epfl.lsr.netty.protocol.{ Network => Network }
+import ch.epfl.lsr.protocol.{ ProtocolLocation => ProtocolLocationBase, Network => Network }
 
 import org.jboss.netty.channel._
 
@@ -38,12 +37,6 @@ case class ProtocolLocation(str :String) extends ProtocolLocationBase {
   private def ClassOrNone(s :String) :Option[Class[_]] = if(s==null) None else Some(Class.forName(s))
 }
 
-
-object ImplicitConversions { 
-  import ch.epfl.lsr.netty.protocol.ImplicitConversions._
-  //implicit def ProtocolLocation2SocketAddress(id :ProtocolLocation) :SocketAddress = id.getSocketAddress
-}
-
 object NetworkingSystem { 
   private var systems = new AtomicReference(collection.immutable.HashMap.empty[ProtocolLocationBase, AbstractNetwork])
 
@@ -66,7 +59,6 @@ object NetworkingSystem {
 
 class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,Any]) { 
   import scala.collection.JavaConversions._
-  import ImplicitConversions._
 
   def this(options :Map[String, Any]) { 
     this(options.get("localAddress").asInstanceOf[InetSocketAddress],options)

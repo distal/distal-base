@@ -1,4 +1,4 @@
-package ch.epfl.lsr.netty.protocol
+package ch.epfl.lsr.protocol
 
 
 trait Network { 

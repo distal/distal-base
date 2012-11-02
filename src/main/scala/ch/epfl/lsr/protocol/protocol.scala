@@ -1,8 +1,7 @@
-package ch.epfl.lsr.netty.protocol
+package ch.epfl.lsr.protocol
 
 import ch.epfl.lsr.netty.network.{ AbstractNetwork, NetworkingSystem }
-import ch.epfl.lsr.netty.channel.ChannelSource
-import ch.epfl.lsr.netty.execution.InProtocolPool
+import ch.epfl.lsr.util.execution.InProtocolPool
 
 import ch.epfl.lsr.netty.config._
 import com.typesafe.config._
@@ -10,14 +9,6 @@ import com.typesafe.config._
 import scala.collection.mutable.HashMap
 
 import java.net.{ InetSocketAddress, URI }
-
-object ImplicitConversions { 
-  // class InetSocketAddressWithPath(addr :InetSocketAddress) { 
-  //   def /(s :String) = { new ProtocolLocation(if(s startsWith "/") s else ("/"+s), addr) }}
-
-//  import language.implicitConversions
-//  implicit def InetSocketAddress2InetWithPath(addr :InetSocketAddress) :InetSocketAddressWithPath = new InetSocketAddressWithPath(addr)
-}
 
 trait ProtocolLocation { 
   def scheme :String
@@ -87,8 +78,6 @@ trait Protocol {
 }
 
 object Protocol { 
-  import ImplicitConversions._
-  
   private val map = HashMap.empty[InetSocketAddress, NetworkingSystem]
   private val lock = new Object
   private var config :Map[String, AnyRef] = null
@@ -111,6 +100,8 @@ object Protocol {
   private def getSystem(addr :InetSocketAddress) = 
     map.synchronized { map.get(addr) }
 
+
+  // TODO move this ?
   private def getSystemOrElseCreate(localAddress :InetSocketAddress, config :Option[Config] = None) :NetworkingSystem = {
     var conf = 
       if(config.nonEmpty) config.get.getMap("network") else null
@@ -131,7 +122,6 @@ object Protocol {
   import ch.epfl.lsr.netty.network.{ ProtocolLocation => DefaultProtocolLocation}
 
   private class DefaultProtocolNetwork(location :DefaultProtocolLocation, protocol: Protocol) extends AbstractNetwork(location) { 
-
 
     def onMessageReceived(msg :Any, from :ProtocolLocation) { 
 

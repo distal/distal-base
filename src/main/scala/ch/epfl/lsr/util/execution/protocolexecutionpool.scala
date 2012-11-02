@@ -1,8 +1,7 @@
-package ch.epfl.lsr.netty.execution
+package ch.epfl.lsr.util.execution
 
-import ch.epfl.lsr.netty.protocol._
+import ch.epfl.lsr.protocol._
 import java.lang.Runnable
-  import ch.epfl.lsr.util.execution.Executors
 
 object InProtocolPool { 
   private val pool = Executors.newCachedOrderedThreadPoolExecutor(extractProtocol _, "Protocols")
