@@ -36,7 +36,7 @@ trait Protocol {
   def network : Network = _theNetwork
   def location :ProtocolLocation
 
-  def getConfig :Option[Config] = None
+//  def getConfig :Option[Config] = None
 
   final def start = { 
     network; 
@@ -78,66 +78,26 @@ trait Protocol {
 }
 
 object Protocol { 
-  private val map = HashMap.empty[InetSocketAddress, NetworkingSystem]
-  private val lock = new Object
-  private var config :Map[String, AnyRef] = null
-  
-  def setConfig(newConfig :Config) { 
-    val asMap = newConfig.toMap
-    lock.synchronized { 
-      config = asMap
-    }
-  }
 
-  def getConfig() = { 
-    lock.synchronized { 
-      if(config==null)
-	config = Configuration.getMap("network")
-      config
-    }
-  }
-
-  private def getSystem(addr :InetSocketAddress) = 
-    map.synchronized { map.get(addr) }
-
-
-  // TODO move this ?
-  private def getSystemOrElseCreate(localAddress :InetSocketAddress, config :Option[Config] = None) :NetworkingSystem = {
-    var conf = 
-      if(config.nonEmpty) config.get.getMap("network") else null
-    if(conf == null)
-      conf = getConfig
-
-    map.synchronized { 
-      map.get(localAddress) match { 
-	case Some(system) => system
-	case None => 
-	  val newSystem = new NetworkingSystem(localAddress, conf)
-	  map.update(localAddress, newSystem)
-	  newSystem
-      }
-    }
-  }
 
   import ch.epfl.lsr.netty.network.{ ProtocolLocation => DefaultProtocolLocation}
-
   private class DefaultProtocolNetwork(location :DefaultProtocolLocation, protocol: Protocol) extends AbstractNetwork(location) { 
 
     def onMessageReceived(msg :Any, from :ProtocolLocation) { 
-
       // execute the handler in ProtocolPool
       protocol.fireMessageReceived(msg, from)
     }
 
     // Protocol object knows about locally created ones
     override def sendTo(m :Any, ids :ProtocolLocation*) { 
-      val locations = ids.asInstanceOf[Seq[DefaultProtocolLocation]]
-
-      val bySystem = locations.groupBy { loc :DefaultProtocolLocation => Protocol.getSystem(loc.getSocketAddress) }
+      val bySystem = ids.groupBy { NetworkFactory.getLocal(_) }
       
       bySystem.foreach { 
-	case (Some(system),locals) =>
-	  system.sendLocal(m, localId, locals :_*)
+	case (Some(network),locals) =>
+	  locals.foreach { 
+	    local => 
+	      network.onMessageReceived(m, local)
+	  }
 	case (None,remotes) =>
 	  super.sendTo(m, remotes :_*)
       }

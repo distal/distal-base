@@ -167,7 +167,8 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
     system.bind(this)
   }
 
-  def close() { 
+  override def close() { 
+    super.close
     system.unbind(this)
     sources.synchronized{ 
       sources.mapValues{ _.close }
@@ -203,15 +204,6 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
 	system.connectTo(id, this, source)
 	source
       })
-      // var rv = sources.get(id)
-      // if(rv.nonEmpty) { 
-      // 	rv.get
-      // } else { 
-      // 	val source = new ChannelSource(localId, addSource _, onMessageReceived _) 
-      // 	system.connectTo(id, this, source)
-      // 	sources.update(id, source)
-      // 	source
-      // }
     }
   }
 
