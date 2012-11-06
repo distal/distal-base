@@ -4,7 +4,7 @@ organization := "ch.epfl.lsr"
 
 version := "0.1"
 
-scalaVersion := "2.10.0-M7"
+scalaVersion := "2.10.0-RC1"
 
 scalacOptions ++= Seq( "-deprecation", "-feature" )
 
