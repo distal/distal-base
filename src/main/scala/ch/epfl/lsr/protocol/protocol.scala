@@ -56,7 +56,6 @@ trait Protocol {
     }
   }
 
-
   final def start = { 
     network; 
     inPool { 
@@ -79,7 +78,7 @@ trait Protocol {
     InProtocolPool.execute(this, task)
   }
 
-  def isShutdown = _isShutdown
+  final def isShutdown = _isShutdown
 
   def fireMessageReceived(m :Any, remoteLocation :ProtocolLocation) { 
     if(_isShutdown)
