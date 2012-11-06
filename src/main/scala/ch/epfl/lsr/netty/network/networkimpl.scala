@@ -51,10 +51,6 @@ object NetworkingSystem {
     networks.get.contains(loc)
   }
 
-  def sendLocal(m: Any, to :ProtocolLocationBase, from :ProtocolLocationBase) { 
-    networks.get.apply(to).onMessageReceived(m, from)
-  }
-
   import ch.epfl.lsr.netty.config._
   lazy val defaultOptions = Configuration.getMap("network")
   // ensure reading uses latest version
@@ -100,15 +96,6 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
     NetworkingSystem.register(network.localId, network)
     dispatchingMap.synchronized { dispatchingMap.update(name, network) }
     this
-  }
-
-  def sendLocal(m :Any, from :ProtocolLocation, remoteIds :ProtocolLocation*) { 
-    remoteIds.foreach { 
-      remoteId =>
-	val network = dispatchingMap.synchronized { dispatchingMap.get(remoteId.name) }
-	assume(network.nonEmpty, "network for "+remoteId+" not found: "+dispatchingMap.synchronized { dispatchingMap.keys })
-        network.get.onMessageReceived(m, from)
-    }
   }
 
   def getPipelineExtension(name :String) : Option[ChannelPipeline] = { 
@@ -222,19 +209,10 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
     }
   }
 
-  def forwardTo(m :Any, to :ProtocolLocationBase, from :ProtocolLocationBase) = { 
-    assume(NetworkingSystem.isLocal(to), "forwarding is only supported for local protocols")
-    NetworkingSystem.sendLocal(m, to, from)
-  }
-
   def sendTo(m :Any, ids :ProtocolLocationBase*) :Unit = { 
     ids.foreach{ 
       remoteId => 
-	if(NetworkingSystem.isLocal(remoteId)) { 
-	  NetworkingSystem.sendLocal(m, localId, remoteId)
-	} else { 
-	  getOrCreateSource(remoteId.asInstanceOf[ProtocolLocation]).write(m)
-	}
+	getOrCreateSource(remoteId.asInstanceOf[ProtocolLocation]).write(m)
     }
     ()
   }

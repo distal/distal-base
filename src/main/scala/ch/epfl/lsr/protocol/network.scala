@@ -3,11 +3,11 @@ package ch.epfl.lsr.protocol
 
 trait Network { 
   def sendTo(m :Any, ids :ProtocolLocation*)
-  def forwardTo(m :Any, to :ProtocolLocation, from :ProtocolLocation) 
   def close = NetworkFactory.close(this)
 
   def onMessageReceived(msg :Any, from :ProtocolLocation)
 }
+
 
 object NetworkFactory { 
   import scala.collection.immutable.{ HashMap => IHashMap }

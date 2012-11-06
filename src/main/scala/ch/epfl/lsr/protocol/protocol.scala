@@ -36,7 +36,29 @@ trait Protocol {
   def network : Network = _theNetwork
   def location :ProtocolLocation
 
-//  def getConfig :Option[Config] = None
+  def sendTo(m :Any, ids :ProtocolLocation*) { 
+    val bySystem = ids.groupBy { NetworkFactory.getLocal(_) }
+      
+    bySystem.foreach { 
+      case (Some(network),locals) =>
+	locals.foreach { 
+	  local => 
+	    network.onMessageReceived(m, local)
+	}
+      case (None,remotes) =>
+	network.sendTo(m, remotes :_*)
+    }
+  }
+
+  def forwardTo(m :Any, to :ProtocolLocation, from :ProtocolLocation) = { 
+    NetworkFactory.getLocal(to) match { 
+      case Some(network) =>
+	network.onMessageReceived(m, from)
+      case None =>
+	throw new Exception("cannot forward to remote protocols :"+to)
+    }
+  }
+
 
   final def start = { 
     network; 
@@ -86,22 +108,7 @@ object Protocol {
       // execute the handler in ProtocolPool
       protocol.fireMessageReceived(msg, from)
     }
-
-    // Protocol object knows about locally created ones
-    override def sendTo(m :Any, ids :ProtocolLocation*) { 
-      val bySystem = ids.groupBy { NetworkFactory.getLocal(_) }
-      
-      bySystem.foreach { 
-	case (Some(network),locals) =>
-	  locals.foreach { 
-	    local => 
-	      network.onMessageReceived(m, local)
-	  }
-	case (None,remotes) =>
-	  super.sendTo(m, remotes :_*)
-      }
-    }
-  }
+  }    
 
   val defaultCreator :NetworkFactory.Creator = { 
     (location,protocol) => 
