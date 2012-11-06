@@ -14,7 +14,6 @@ trait ProtocolLocation {
   def scheme :String
 }
 
-
 trait ProtocolRunnable extends Runnable { 
   def protocol : Protocol
 }
@@ -31,9 +30,7 @@ class AlreadyShutdownException extends Exception
 trait Protocol {
   @volatile
   private var _isShutdown = false
-  private lazy val _theNetwork :Network = NetworkFactory.newNetwork(location, this)
-  
-  def network : Network = _theNetwork
+  private lazy val network :Network = NetworkFactory.newNetwork(location, this)
   def location :ProtocolLocation
 
   def sendTo(m :Any, ids :ProtocolLocation*) { 
