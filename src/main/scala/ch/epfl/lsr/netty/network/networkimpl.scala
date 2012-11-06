@@ -37,22 +37,44 @@ case class ProtocolLocation(str :String) extends ProtocolLocationBase {
 }
 
 object NetworkingSystem { 
-  private var systems = new AtomicReference(collection.immutable.HashMap.empty[ProtocolLocationBase, AbstractNetwork])
+  private var networks = new AtomicReference(collection.immutable.HashMap.empty[ProtocolLocationBase, AbstractNetwork])
 
   def register(loc :ProtocolLocation, net :AbstractNetwork) { 
-    val oldsys = systems.get
-    if(! systems.compareAndSet(oldsys, oldsys.updated(loc, net))) { 
+    val oldmap = networks.get
+    if(! networks.compareAndSet(oldmap, oldmap.updated(loc, net))) { 
        println("retrying to register")
        register(loc, net)
     }
   }
   
   def isLocal(loc :ProtocolLocationBase) = { 
-    systems.get.contains(loc)
+    networks.get.contains(loc)
   }
 
   def sendLocal(m: Any, to :ProtocolLocationBase, from :ProtocolLocationBase) { 
-    systems.get.apply(to).onMessageReceived(m, from)
+    networks.get.apply(to).onMessageReceived(m, from)
+  }
+
+  import ch.epfl.lsr.netty.config._
+  lazy val defaultOptions = Configuration.getMap("network")
+  // ensure reading uses latest version
+  @volatile
+  private var systems  = collection.immutable.HashMap.empty[InetSocketAddress, NetworkingSystem]
+  private val syslock = new Object()
+
+  def getSystem(addr :InetSocketAddress, options :Map[String,Any] = null) :NetworkingSystem = { 
+    val opts = if(options == null) defaultOptions else options
+    systems.get(addr) match { 
+      case Some(s) => s
+      case None =>
+	syslock.synchronized { // lock for writers, ensuring only one networksystem is created for each SocketAddr
+	  systems.getOrElse(addr, {  
+	    val sys = new NetworkingSystem(addr, opts)
+	    systems = systems.updated(addr, sys)
+	    sys
+	  })
+	}
+    }
   }
 }
 
@@ -68,16 +90,16 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
   def unbind(network :AbstractNetwork) = 
     dispatchingMap.synchronized { dispatchingMap remove network.name }
 
-  def bind(network :AbstractNetwork) :AbstractNetwork = bind(network, network.name)
+  def bind(network :AbstractNetwork) :NetworkingSystem = bind(network, network.name)
 
-  def bind(network :AbstractNetwork, name :String) :AbstractNetwork = { 
+  def bind(network :AbstractNetwork, name :String) :NetworkingSystem = { 
     if(network == null) { 
       throw new NullPointerException("network")
     }
 
     NetworkingSystem.register(network.localId, network)
     dispatchingMap.synchronized { dispatchingMap.update(name, network) }
-    network
+    this
   }
 
   def sendLocal(m :Any, from :ProtocolLocation, remoteIds :ProtocolLocation*) { 
@@ -157,15 +179,8 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 
 abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network { 
   def name = localId.name
-  @volatile
-  var system : NetworkingSystem = _
 
-  def bindTo(toBind :NetworkingSystem) { 
-    if(system != null) 
-      throw new Exception("already bound")
-    system = toBind
-    system.bind(this)
-  }
+  private lazy val system : NetworkingSystem = NetworkingSystem.getSystem(localId.getSocketAddress).bind(this)
 
   override def close() { 
     super.close
