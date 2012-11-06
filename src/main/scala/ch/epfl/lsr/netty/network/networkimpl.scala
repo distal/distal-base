@@ -180,7 +180,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network { 
   def name = localId.name
 
-  private lazy val system : NetworkingSystem = NetworkingSystem.getSystem(localId.getSocketAddress).bind(this)
+  private val system : NetworkingSystem = NetworkingSystem.getSystem(localId.getSocketAddress).bind(this)
 
   override def close() { 
     super.close
