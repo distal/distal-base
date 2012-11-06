@@ -79,7 +79,6 @@ trait Protocol {
 
 object Protocol { 
 
-
   import ch.epfl.lsr.netty.network.{ ProtocolLocation => DefaultProtocolLocation}
   private class DefaultProtocolNetwork(location :DefaultProtocolLocation, protocol: Protocol) extends AbstractNetwork(location) { 
 
@@ -109,6 +108,6 @@ object Protocol {
       new DefaultProtocolNetwork(location.asInstanceOf[DefaultProtocolLocation], protocol)
   }
 
-  NetworkFactory.registerScheme("lsr", defaultCreator)
+  def registerDefault = NetworkFactory.registerScheme("lsr", defaultCreator)
 }
 
