@@ -8,7 +8,7 @@ trait Network {
   def onMessageReceived(msg :Any, from :ProtocolLocation)
 }
 
-
+// TODO: allow simulation to change local delivery
 object NetworkFactory { 
   import scala.collection.immutable.{ HashMap => IHashMap }
   import scala.collection.mutable.{ HashMap => MHashMap }

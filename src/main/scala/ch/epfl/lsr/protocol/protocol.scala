@@ -40,7 +40,7 @@ trait Protocol {
       case (Some(network),locals) =>
 	locals.foreach { 
 	  local => 
-	    network.onMessageReceived(m, local)
+	    network.onMessageReceived(m, location)
 	}
       case (None,remotes) =>
 	network.sendTo(m, remotes :_*)
