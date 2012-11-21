@@ -26,7 +26,7 @@ import java.util.LinkedList
 
 import java.util.concurrent.atomic.AtomicInteger
 
-class ClassIdMapping(val clazzName :String, val id :Int) { 
+case class ClassIdMapping(clazzName :String, id :Int) { 
   def this(reg :Registration) = this(reg.getType.getName, reg.getId)
   def registerWith(kryo :Kryo) = { 
     val clazz = Class forName clazzName
@@ -182,6 +182,7 @@ class KryoEncoder extends LengthFieldPrepender(4) with KryoFromContext {
   }
 
   private def enQ(mapping :ClassIdMapping) = { 
+//    println(mapping)
     lock.synchronized { 
       theQ addLast mapping
     }
@@ -206,7 +207,7 @@ class KryoEncoder extends LengthFieldPrepender(4) with KryoFromContext {
     kryo(ctx).writeClassAndObject(output, msg)
     output.flush
     output.close
-    // println("encoded "+msg.getClass+" to "+(os.buffer.writerIndex - idx)+" bytes")
+//    println("encoded "+msg.getClass+" to "+(os.buffer.writerIndex - idx)+" bytes")
     super.encode(ctx, channel, os.buffer).asInstanceOf[ChannelBuffer]
   }
   
