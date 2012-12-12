@@ -23,7 +23,7 @@ object NetworkFactory {
   def getLocal(loc :ProtocolLocation) :Option[Network]= locals.get(loc)
 
   def newNetwork(loc :ProtocolLocation, protocol :Protocol) = { 
-    val creator = creators.synchronized{ 
+    val creator = creators.synchronized { 
       if(creators.isEmpty)
 	Protocol.registerDefault
       creators(loc.scheme) 

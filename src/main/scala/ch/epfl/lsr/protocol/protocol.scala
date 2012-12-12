@@ -104,7 +104,7 @@ object Protocol {
       // execute the handler in ProtocolPool
       protocol.fireMessageReceived(msg, from)
     }
-  }    
+  }
 
   val defaultCreator :NetworkFactory.Creator = { 
     (location,protocol) => 
