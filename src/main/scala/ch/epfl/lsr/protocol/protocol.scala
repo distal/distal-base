@@ -3,9 +3,6 @@ package ch.epfl.lsr.protocol
 import ch.epfl.lsr.netty.network.{ AbstractNetwork, NetworkingSystem }
 import ch.epfl.lsr.util.execution.InProtocolPool
 
-import ch.epfl.lsr.netty.config._
-import com.typesafe.config._
-
 import scala.collection.mutable.HashMap
 
 import java.net.{ InetSocketAddress, URI }

@@ -1,4 +1,4 @@
-package ch.epfl.lsr.netty.config
+package ch.epfl.lsr.config
 
 import java.net.URI
 

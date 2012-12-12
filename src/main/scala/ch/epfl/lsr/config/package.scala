@@ -1,4 +1,4 @@
-package ch.epfl.lsr.netty
+package ch.epfl.lsr
 
 import com.typesafe.config.{ Config, ConfigFactory }
 

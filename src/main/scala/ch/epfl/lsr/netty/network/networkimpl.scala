@@ -65,7 +65,7 @@ object NetworkingSystem {
   //   networks.get.contains(loc)
   // }
 
-  import ch.epfl.lsr.netty.config._
+  import ch.epfl.lsr.config._
   lazy val defaultOptions = Configuration.getMap("network")
 
   // ensure reading uses latest version
