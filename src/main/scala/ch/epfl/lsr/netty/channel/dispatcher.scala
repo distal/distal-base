@@ -6,10 +6,11 @@ import org.jboss.netty.buffer.{ ChannelBuffer }
 import org.jboss.netty.handler.codec.frame.{ DelimiterBasedFrameDecoder, Delimiters }
 
 import ch.epfl.lsr.netty.util.ChannelFutures
+import ch.epfl.lsr.netty.network.{ ConnectionDescriptor, ProtocolLocation }
 
 import java.nio.charset.Charset
 
-class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends DelimiterBasedFrameDecoder(1024, Delimiters.lineDelimiter() :_*) { 
+class DispatchingHandler(dispatch :ConnectionDescriptor=>Option[ChannelPipeline]) extends DelimiterBasedFrameDecoder(1024, Delimiters.lineDelimiter() :_*) { 
   import scala.collection.JavaConversions._
 
   override def decode(ctx :ChannelHandlerContext, ch :Channel, cb :ChannelBuffer ) :Object = { 
@@ -20,8 +21,9 @@ class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends Deli
     
     val line = frame.asInstanceOf[ChannelBuffer].toString(Charset.defaultCharset)
 
-    val optionallyAppend :Option[ChannelPipeline] = dispatch(line)
+    val conn = ConnectionDescriptor(line)
 
+    val optionallyAppend :Option[ChannelPipeline] = dispatch(conn)
 
     if(optionallyAppend.isEmpty) {
       ch.close
@@ -49,33 +51,35 @@ class DispatchingHandler(dispatch :String=>Option[ChannelPipeline]) extends Deli
 
 
 object RemoteSelectionHandler { 
-  def setSelectionString(pipeline :ChannelPipeline, selection :String) = { 
-    pipeline.getContext(classOf[RemoteSelectionHandler]).setAttachment(selection)
+  def setConnectionDescriptor(pipeline :ChannelPipeline, conn :ConnectionDescriptor) = { 
+    pipeline.getContext(classOf[RemoteSelectionHandler]).setAttachment(conn)
   }
   
-  def getSelectionString(pipeline :ChannelPipeline) :String = { 
-    pipeline.getContext(classOf[RemoteSelectionHandler]).getAttachment().asInstanceOf[String]
+  def getConnectionDescriptor(pipeline :ChannelPipeline) :ConnectionDescriptor = { 
+    pipeline.getContext(classOf[RemoteSelectionHandler]).getAttachment().asInstanceOf[ConnectionDescriptor]
   }
 
-  def copySelectionString(from :ChannelPipeline, to :ChannelPipeline) = { 
-    setSelectionString(to, getSelectionString(from))
+  def copyConnectionDescriptor(from :ChannelPipeline, to :ChannelPipeline) = { 
+    setConnectionDescriptor(to, getConnectionDescriptor(from))
   }
 }
 
 class RemoteSelectionHandler extends SimpleChannelHandler  { 
 
-  def getSelectionString(ctx :ChannelHandlerContext) = ctx.getAttachment.asInstanceOf[String]
+  def getConnectionDescriptor(ctx :ChannelHandlerContext) = ctx.getAttachment.asInstanceOf[ConnectionDescriptor]
 
-  override def channelConnected(ctx :ChannelHandlerContext, e :ChannelStateEvent) { 
-    super.channelConnected(ctx, e)
-  }
+  // override def channelConnected(ctx :ChannelHandlerContext, e :ChannelStateEvent) { 
+  //   super.channelConnected(ctx, e)
+  // }
 
   override def connectRequested(ctx :ChannelHandlerContext, e :ChannelStateEvent) { 
     ChannelFutures.onSuccess(e.getFuture) { 
       f => 
+	val conn = getConnectionDescriptor(ctx)
+
 	val buffer =
 	  // basicly copied from netty's StringEncoder
-	  copiedBuffer(ctx.getChannel.getConfig.getBufferFactory.getDefaultOrder, getSelectionString(ctx)+"\n", Charset.defaultCharset)
+	  copiedBuffer(ctx.getChannel.getConfig.getBufferFactory.getDefaultOrder, conn.reverse.toString+"\n", Charset.defaultCharset)
 	// send write event downstream
 	Channels.write(ctx, Channels.succeededFuture(e.getChannel), buffer)
     }

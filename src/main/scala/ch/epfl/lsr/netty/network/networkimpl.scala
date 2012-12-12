@@ -16,10 +16,10 @@ import scala.collection.mutable.HashMap
 import java.net.{ SocketAddress, InetSocketAddress, URI }
 
 case class ProtocolLocation(str :String) extends ProtocolLocationBase { 
-  val scheme = "lsr"
-
   val uri = new URI(str)
 //  def this(u :URI) = this(u.toString)
+
+  val scheme = uri.getScheme
 
   def name :String = uri.getPath
   def host :String = uri.getHost
@@ -27,36 +27,53 @@ case class ProtocolLocation(str :String) extends ProtocolLocationBase {
   lazy val clazz :Option[Class[_]] = ClassOrNone(uri.getUserInfo)
 
   def isForClazz(c :Class[_]) = clazz.filter{ _ == c}.nonEmpty
-  lazy val getSocketAddress = new InetSocketAddress(host, port)
+  def getSocketAddress = new InetSocketAddress(host, port)
   def /(s :String) = { 
     ProtocolLocation(uri.toString+s)
   }
 
   private def OrDefaultPort(port :Int) = if(port == -1) 2552 else port
   private def ClassOrNone(s :String) :Option[Class[_]] = if(s==null) None else Some(Class.forName(s))
+
+  def to(remote :ProtocolLocation) = ConnectionDescriptor(this, remote)
+}
+
+case class ConnectionDescriptor(local :ProtocolLocation, remote :ProtocolLocation) { 
+  def reverse = ConnectionDescriptor(remote, local)
+}
+
+object ConnectionDescriptor { 
+              // ConnectionDescriptor(ProtocolLocation(......),ProtocolLocation(......))
+  val regex = """ConnectionDescriptor\(ProtocolLocation\((.*)\),ProtocolLocation\((.*)\)\)""".r
+
+  def apply(s :String) = { 
+    val regex(from,to) = s
+    new ConnectionDescriptor(ProtocolLocation(from), ProtocolLocation(to))
+  }
 }
 
 object NetworkingSystem { 
-  private var networks = new AtomicReference(collection.immutable.HashMap.empty[ProtocolLocationBase, AbstractNetwork])
-
-  def register(loc :ProtocolLocation, net :AbstractNetwork) { 
-    val oldmap = networks.get
-    if(! networks.compareAndSet(oldmap, oldmap.updated(loc, net))) { 
-       println("retrying to register")
-       register(loc, net)
-    }
-  }
-  
-  def isLocal(loc :ProtocolLocationBase) = { 
-    networks.get.contains(loc)
-  }
+  // private var networks = new AtomicReference(collection.immutable.HashMap.empty[ProtocolLocationBase, AbstractNetwork])
+  // def register(loc :ProtocolLocation, net :AbstractNetwork) { 
+  //   val oldmap = networks.get
+  //   if(! networks.compareAndSet(oldmap, oldmap.updated(loc, net))) { 
+  //      println("retrying to register")
+  //      register(loc, net)
+  //   }
+  // }
+  // def isLocal(loc :ProtocolLocationBase) = { 
+  //   networks.get.contains(loc)
+  // }
 
   import ch.epfl.lsr.netty.config._
   lazy val defaultOptions = Configuration.getMap("network")
+
   // ensure reading uses latest version
   @volatile
   private var systems  = collection.immutable.HashMap.empty[InetSocketAddress, NetworkingSystem]
   private val syslock = new Object()
+
+  def apply(addr :InetSocketAddress, options :Map[String,Any] = null) = getSystem(addr, options)
 
   def getSystem(addr :InetSocketAddress, options :Map[String,Any] = null) :NetworkingSystem = { 
     val opts = if(options == null) defaultOptions else options
@@ -81,30 +98,29 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
     this(options.get("localAddress").asInstanceOf[InetSocketAddress],options)
   }
 
-  val dispatchingMap = new HashMap[String, AbstractNetwork]()
+  val dispatchingMap = new java.util.concurrent.ConcurrentHashMap[ProtocolLocation, AbstractNetwork]()
 
   def unbind(network :AbstractNetwork) = 
-    dispatchingMap.synchronized { dispatchingMap remove network.name }
-
-  def bind(network :AbstractNetwork) :NetworkingSystem = bind(network, network.name)
-
-  def bind(network :AbstractNetwork, name :String) :NetworkingSystem = { 
+    dispatchingMap remove network.localId
+  
+  def bind(network :AbstractNetwork) :NetworkingSystem = { 
     if(network == null) { 
       throw new NullPointerException("network")
     }
+    
+    assert(network.localId.getSocketAddress == localAddress)
 
-    NetworkingSystem.register(network.localId, network)
-    dispatchingMap.synchronized { dispatchingMap.update(name, network) }
+    dispatchingMap.put(network.localId, network)
     this
   }
 
-  def getPipelineExtension(name :String) : Option[ChannelPipeline] = { 
-    val network = dispatchingMap.synchronized {  dispatchingMap.get(name) }
+  def getPipelineExtension(conn :ConnectionDescriptor) : Option[ChannelPipeline] = { 
+    val network = dispatchingMap.get(conn.local) 
 
-    if(network.isEmpty) { 
+    if(network == null) { 
       None
     } else { 
-      Some(network.get.newPipeline)
+      Some(network.newPipeline(conn))
     }
   }
 
@@ -112,11 +128,8 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
     val bs = SocketServer.bootstrap(options) { 
       pipeline (
 	//new PrintWrittenHandler{ },
-	//new PrintingHandler{ },
-	new DispatchingHandler(getPipelineExtension _),
-	// everyone uses kryo, so we can already add that
-	new KryoEncoder(),
-	new KryoDecoder()
+	// new PrintingHandler{ },
+	new DispatchingHandler(getPipelineExtension _)
       )
     }
     //println("binding "+localAddress)
@@ -126,17 +139,14 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 
 
   val remoteSelector = new RemoteSelectionHandler()
-  val reconnector = new ReconnectionHandler(100, copyPipeline)
+  val reconnector = new ReconnectionHandler(100, copyPipeline) 
   val clientBootstrap = SocketClient.bootstrap(options) { newClientPipeline }
   private def newClientPipeline = { 
     pipeline (
       //new PrintWrittenHandler{ },
       //new PrintingHandler{ },
-      reconnector,
-      remoteSelector,
-      // everyone uses kryo, so we can already add that
-      new KryoEncoder(),
-      new KryoDecoder()
+      reconnector, 
+      remoteSelector
     )
   }
 
@@ -146,20 +156,20 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
     for(e <- oldpipe.toMap.entrySet) { 
       newpipe.addLast(e.getKey, e.getValue)
     }
-
-    RemoteSelectionHandler.copySelectionString(oldpipe, newpipe)
+    
+    RemoteSelectionHandler.copyConnectionDescriptor(oldpipe, newpipe)
     newpipe
   }
-  
-  def connectTo(other :ProtocolLocation, localNetwork :AbstractNetwork, source :ChannelSource) :ChannelFuture = { 
-    
+
+  def makeClientPipeline(toAppend :ChannelPipeline) :ChannelPipeline = { 
     val future = clientBootstrap.bind(localAddress) 
     val pipeline = future.getChannel.getPipeline
-    pipeline.addLast("--source", source)
-
-    RemoteSelectionHandler.setSelectionString(pipeline, other.name)
     
-    source.connect(other)
+    for(e <- toAppend.toMap.entrySet) { 
+      pipeline.addLast(this.toString+"Extension"+e.getKey, e.getValue)
+    }
+    
+    pipeline
   }
 }
 
@@ -167,7 +177,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network { 
   def name = localId.name
 
-  private val system : NetworkingSystem = NetworkingSystem.getSystem(localId.getSocketAddress).bind(this)
+  private val system : NetworkingSystem = NetworkingSystem(localId.getSocketAddress).bind(this)
 
   override def close() { 
     super.close
@@ -193,17 +203,22 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
       sources.update(id, source) 
     }
   }
-  private def getSource(id :ProtocolLocation) = { 
-    sources.synchronized{ 
-      sources.get(id) 
-    }
-  }
+  // private def getSource(id :ProtocolLocation) = { 
+  //   sources.synchronized{ 
+  //     sources.get(id) 
+  //   }
+  // }
 
   private def getOrCreateSource(id :ProtocolLocation) :ChannelSource = { 
     sources.synchronized{ 
       sources.getOrElseUpdate(id, {
-	val source = new ChannelSource(localId, addSource _, onMessageReceived _) 
-	system.connectTo(id, this, source)
+	val conn = localId to id
+	val pipeline = system.makeClientPipeline(newPipeline(conn))
+	
+	RemoteSelectionHandler.setConnectionDescriptor(pipeline, conn)
+	
+	val source = pipeline.getLast.asInstanceOf[ChannelSource] 
+	val future = source.connect()
 	source
       })
     }
@@ -217,10 +232,36 @@ abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network {
     ()
   }
 
-  // creates a new Pipeline (used by system on connect to/from remote)
-  def newPipeline =
-    pipeline(
-      new ChannelSource(localId, addSource _, onMessageReceived _) 
-    )
+  // creates a new Pipeline
+  def newPipeline(conn :ConnectionDescriptor) = { 
+    val source =  new ChannelSource(conn, onMessageReceived _) 
+    val pipeline = ChannelPipelines.getPipeline(conn)
+    pipeline.addLast("source", source)
+    addSource(conn.remote, source)
+    pipeline
+  }
 }
 
+
+object ChannelPipelines { 
+  private val map = new java.util.concurrent.ConcurrentHashMap[String,ChannelPipelineFactory]
+  
+  def register(scheme :String, factory :ChannelPipelineFactory) = { 
+    map.put(scheme, factory)
+  }
+
+  register("lsr", new ChannelPipelineFactory { 
+    def getPipeline = pipeline( 
+      new KryoEncoder(),
+      new KryoDecoder()
+    )})
+  
+  def getPipeline(conn :ConnectionDescriptor) = { 
+    val scheme = conn.local.scheme
+    val factory = map.get(scheme)
+    if(factory == null) 
+      throw new Exception("no pipelinefactory set for scheme: "+scheme)
+    else 
+      factory.getPipeline
+  }
+}
