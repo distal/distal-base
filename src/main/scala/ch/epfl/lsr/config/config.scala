@@ -4,10 +4,16 @@ import java.net.URI
 
 import com.typesafe.config._
 
+import scala.collection.immutable.Map
+
+
 class RicherConfig(config :Config) { 
   import scala.collection.JavaConverters._
   
-  def toMap = config.entrySet.asScala.map{ e => (e.getKey,e.getValue) }.toMap
+  def toMap = config.entrySet.asScala.map{ e => (e.getKey,e.getValue) }.toMap.withDefault { 
+    key => 
+      throw new Exception("no value configured for "+key)
+  }
   def getMap(path :String) :Map[String,AnyRef] = { 
     try { 
       config.getObject(path).unwrapped.asScala.toMap

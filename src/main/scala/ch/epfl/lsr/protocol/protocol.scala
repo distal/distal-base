@@ -1,6 +1,5 @@
 package ch.epfl.lsr.protocol
 
-import ch.epfl.lsr.netty.network.{ AbstractNetwork, NetworkingSystem }
 import ch.epfl.lsr.util.execution.InProtocolPool
 
 import scala.collection.mutable.HashMap
@@ -27,7 +26,7 @@ class AlreadyShutdownException extends Exception
 trait Protocol {
   @volatile
   private var _isShutdown = false
-  private lazy val network :Network = NetworkFactory.newNetwork(location, this)
+  private lazy val network :Network = NetworkFactory.createNetwork(location, this)
   def location :ProtocolLocation
 
   def sendTo(m :Any, ids :ProtocolLocation*) { 
@@ -92,22 +91,36 @@ trait Protocol {
   def beforeShutdown :Unit = { }
 }
 
-object Protocol { 
+import ch.epfl.lsr.netty.network.{ ProtocolLocation => DefaultProtocolLocation}
+import ch.epfl.lsr.netty.network.{ AbstractNetwork => NettyNetwork }
 
-  import ch.epfl.lsr.netty.network.{ ProtocolLocation => DefaultProtocolLocation}
-  private class DefaultProtocolNetwork(location :DefaultProtocolLocation, protocol: Protocol) extends AbstractNetwork(location) { 
+trait ProtocolNetwork extends Network { 
+  val protocol :Protocol
 
-    def onMessageReceived(msg :Any, from :ProtocolLocation) { 
-      // execute the handler in ProtocolPool
-      protocol.fireMessageReceived(msg, from)
-    }
+  def onMessageReceived(msg :Any, from :ProtocolLocation) { 
+    // execute the handler in ProtocolPool
+    protocol.fireMessageReceived(msg, from)
   }
-
-  val defaultCreator :NetworkFactory.Creator = { 
-    (location,protocol) => 
-      new DefaultProtocolNetwork(location.asInstanceOf[DefaultProtocolLocation], protocol)
-  }
-
-  def registerDefault = NetworkFactory.registerScheme("lsr", defaultCreator)
 }
+
+
+abstract class NettyBasedProtocolNetwork(location :DefaultProtocolLocation, val protocol :Protocol) extends NettyNetwork(location) with ProtocolNetwork { 
+  def getPipeline :org.jboss.netty.channel.ChannelPipeline
+}
+
+class DefaultProtocolNetwork(location :DefaultProtocolLocation, protocol: Protocol) extends NettyBasedProtocolNetwork(location, protocol) { 
+  import ch.epfl.lsr.netty.bootstrap.pipeline
+  import ch.epfl.lsr.netty.codec.kryo._
+  
+  def getPipeline = pipeline( 
+    new KryoEncoder(),
+    new KryoDecoder()
+  )
+}
+
+class DefaultFactory extends NetworkFactory { 
+  def createNetwork(location :ProtocolLocation, protocol :Protocol) :Network =
+    new DefaultProtocolNetwork(location.asInstanceOf[DefaultProtocolLocation], protocol)
+}
+
 

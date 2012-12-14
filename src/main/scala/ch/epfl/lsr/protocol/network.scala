@@ -8,13 +8,16 @@ trait Network {
   def onMessageReceived(msg :Any, from :ProtocolLocation)
 }
 
+trait NetworkFactory { 
+  def createNetwork(location :ProtocolLocation, protocol :Protocol) :Network 
+}
+
 // TODO: allow simulation to change local delivery
 object NetworkFactory { 
   import scala.collection.immutable.{ HashMap => IHashMap }
   import scala.collection.mutable.{ HashMap => MHashMap }
   
-  type Creator = Function2[ProtocolLocation, Protocol, Network]
-  private val creators = new MHashMap[String,Creator]()
+  private val creators = new MHashMap[String,NetworkFactory]()
 
   private val lock = new Object
   @volatile
@@ -22,14 +25,12 @@ object NetworkFactory {
 
   def getLocal(loc :ProtocolLocation) :Option[Network]= locals.get(loc)
 
-  def newNetwork(loc :ProtocolLocation, protocol :Protocol) = { 
+  def createNetwork(loc :ProtocolLocation, protocol :Protocol) = { 
     val creator = creators.synchronized { 
-      if(creators.isEmpty)
-	Protocol.registerDefault
       creators(loc.scheme) 
     }
     
-    val network = creator(loc, protocol)
+    val network = creator.createNetwork(loc, protocol)
 
     lock.synchronized{ locals = locals.updated(loc, network) }
     
@@ -42,7 +43,25 @@ object NetworkFactory {
     }
   }
 
-  def registerScheme(scheme :String, creator :Creator) { 
+  def registerScheme(scheme :String, creator :NetworkFactory) { 
     creators.update(scheme, creator)
   }
+
+  def registerScheme(scheme :String, creatorClazz :Class[_ <: NetworkFactory]) { 
+    creators.find (kv => kv._2.getClass == creatorClazz ) match { 
+      case Some(kv) => registerScheme(scheme, kv._2)
+      case None => registerScheme(scheme, creatorClazz.newInstance)
+    }
+  }
+
+  def registerFromConfig() = { 
+    NetworkConfig.configuredSchemas.foreach { 
+      s => 
+	val name = NetworkConfig(s).getString("factory")
+	val clazz = Class.forName(name).asSubclass(classOf[NetworkFactory])
+	registerScheme(s, clazz)
+    }
+  }
+
+  registerFromConfig()
 }
