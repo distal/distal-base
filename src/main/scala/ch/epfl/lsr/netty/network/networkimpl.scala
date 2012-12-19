@@ -8,6 +8,8 @@ import ch.epfl.lsr.config._
 
 import org.jboss.netty.channel._
 
+import com.typesafe.config.Config
+
 import java.util.concurrent.{ TimeUnit }
 import java.util.concurrent.atomic.AtomicReference
 
@@ -71,9 +73,9 @@ object NetworkingSystem {
   private var systems  = collection.immutable.HashMap.empty[InetSocketAddress, NetworkingSystem]
   private val syslock = new Object()
 
-  def apply(addr :InetSocketAddress, options :Map[String,Any]) = getSystem(addr, options)
+  def apply(addr :InetSocketAddress, options :Config) = getSystem(addr, options)
 
-  def getSystem(addr :InetSocketAddress, options :Map[String,Any]) :NetworkingSystem = { 
+  def getSystem(addr :InetSocketAddress, options :Config) :NetworkingSystem = { 
     systems.get(addr) match { 
       case Some(s) => s
       case None =>
@@ -88,12 +90,12 @@ object NetworkingSystem {
   }
 }
 
-class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,Any]) { 
+class NetworkingSystem(val localAddress :InetSocketAddress, options :Config) { 
   import scala.collection.JavaConversions._
 
-  def this(options :Map[String, Any]) = {
-    this(options("localAddress").asInstanceOf[InetSocketAddress],options)
-  }
+//  def this(options :Map[String, Any]) = {
+//    this(options("localAddress").asInstanceOf[InetSocketAddress],options)
+//  }
 
   val dispatchingMap = new java.util.concurrent.ConcurrentHashMap[ProtocolLocation, AbstractNetwork]()
 
@@ -171,7 +173,7 @@ class NetworkingSystem(val localAddress :InetSocketAddress, options :Map[String,
 }
 
 abstract class AbstractNetwork(val localId: ProtocolLocation) extends Network with ChannelPipelineFactory { 
-  private val networkingOptions :Map[String,Any] = NetworkConfig(localId.scheme).getConfig("options").toMap // TODO: push down config as config instead of map?
+  private val networkingOptions :Config = NetworkConfig(localId.scheme).getConfig("options")
 
   private val system : NetworkingSystem = NetworkingSystem(localId.getSocketAddress, networkingOptions).bind(this)
 

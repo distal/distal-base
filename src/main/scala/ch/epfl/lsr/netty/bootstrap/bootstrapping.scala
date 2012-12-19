@@ -6,6 +6,13 @@ import org.jboss.netty.channel._
 import org.jboss.netty.channel.socket.nio.{ NioServerSocketChannelFactory, NioClientSocketChannelFactory, NioDatagramChannelFactory }
 import org.jboss.netty.channel.socket.oio.{ OioServerSocketChannelFactory, OioClientSocketChannelFactory, OioDatagramChannelFactory }
 
+import org.jboss.netty.channel.socket.{ DatagramChannelConfig, ServerSocketChannelConfig, SocketChannelConfig }
+import org.jboss.netty.channel.socket.nio.{ NioSocketChannelConfig }
+
+import com.typesafe.config.Config
+import scala.reflect.ClassTag
+
+
 object PipelineHelper { 
   
   def pipelineFactory(f : =>ChannelPipeline) = { 
@@ -40,62 +47,118 @@ trait CanApplyPipeline[T] {
   }
 }
 
+
+
 trait Bootstrapper[T <: Bootstrap] { 
   import scala.collection.JavaConverters._
+  import com.typesafe.config._
   
-  def bootstrap(options :Map[String,Any]) : T with CanApplyPipeline[T] 
-
-  def bootstrap(options :Tuple2[String,Any]*) : T with CanApplyPipeline[T] = { 
-    bootstrap(options.toMap)
+  def configClass : Class[_]
+  private lazy val configClassMethods = { 
+    configClass.getDeclaredMethods
   }
 
-  def setOptions(bootstrap :T with CanApplyPipeline[T], options:Map[String,Any]) : T with CanApplyPipeline[T] = { 
-    setOptions(bootstrap, options.view)
+  private def longOption(name :String, conf :Config) :Long = { 
+    try { 
+      conf.getInt(name).toLong
+    } catch { 
+      case e: ConfigException => 
+	try { 
+	  conf.getMilliseconds(name)
+	} catch { 
+	  case e: ConfigException => 
+	    conf.getBytes(name).toLong
+	}
+    }
+  }
+  
+  // TODO this does not really work. 
+  def getArgumentType(key :String) = { 
+    val name :String = "set"+(if(key.startsWith("child.")) key.substring("child.".length)
+			     else key).toLowerCase
+    println("checking "+name)
+    val types = configClassMethods filter { 
+      m => 
+	val n = m.getName.toLowerCase
+	println("  "+n+": "+(n==name)); 
+	n == name
+      } flatMap { _.getParameterTypes.headOption } 
+
+    types.foreach { t => 
+      println("  have "+t)
+    }
+
+    types.headOption.getOrElse(classOf[Null])
   }
 
-  def setOptions(bootstrap :T with CanApplyPipeline[T], options:Traversable[(String,Any)]) : T with CanApplyPipeline[T] = { 
+  object types { 
+    val Int = classOf[Int]
+    val Long = classOf[Long]
+    val String = classOf[String]
+    val Boolean = classOf[Boolean]
+    val NotFound = classOf[Null]
+  }
+
+  def setOptions(bootstrap :T with CanApplyPipeline[T], options :Config) : T with CanApplyPipeline[T] = { 
+    println("---------------------------------------")
     println("setting options:")
-    options.foreach(o => println("  "+o))
-    options.foreach((bootstrap.setOption _).tupled)
+    println (this.getClass+": "+configClass)
+
+
+    options.entrySet.asScala.map(_.getKey).foreach { 
+      key => 
+	val value = getArgumentType(key) match { 
+	  case types.Int => longOption(key, options).toInt
+	  case types.Long => longOption(key, options)
+	  //case types.String => options.getString(key)
+	  case types.Boolean => options.getBoolean(key)
+	  case types.NotFound => 
+	    println("not found: "+key)
+	    options.getValue(key).unwrapped
+	  case _ => 
+	    options.getValue(key).unwrapped
+	}
+      println("  "+key+" = "+value +" ("+value.getClass+")")
+      bootstrap.setOption(key,value)
+    }
     bootstrap
   }
 }
 
 object ChannelFactories { 
   import ch.epfl.lsr.util.execution.{ Executors => E }
+  import scala.collection.JavaConverters._
 
   val IOBoss =   E.newCachedThreadPoolExecutor("IOBoss")
   val IOWorker = E.newCachedThreadPoolExecutor("IOWorker")
 
 
-  private def useNIO(options :Map[String,Any]) :Boolean = { 
-    val rv = 
-    if(options==null)
-      true
-    else { 
-      options.find(sa => sa._1 == "UseNIO") match { 
-	case Some((_, false)) => false
-	case _ => true
-      }
-    } 
-    rv
+  private def useNIO(options :Config) :Boolean = { 
+    try {  
+      val key = options.root.keySet.asScala.filter { k => k.toLowerCase == "useNIO".toLowerCase }
+      options.getBoolean(key.head)      
+    } catch { 
+      case e :Exception => 
+	println("could not find useNIO option, turning on by default")
+	true
+    }
   }
   
-  def server(options :Map[String,Any]) = { 
+  def server(options :Config) = { 
     useNIO(options) match { 
       case false => new OioServerSocketChannelFactory(IOBoss, IOWorker)
       case _ => new NioServerSocketChannelFactory(IOBoss, IOWorker)
     }
   }
 
-  def client(options :Map[String,Any]) = { 
+  def client(options :Config) = { 
     useNIO(options) match { 
       case false => new OioClientSocketChannelFactory(IOWorker)
       case _ => new NioClientSocketChannelFactory(IOBoss, IOWorker)
     }
   }
 
-  def datagram(options :Map[String,Any]) = { 
+  def datagram(options :Config) = { 
     useNIO(options) match { 
       case false => new OioDatagramChannelFactory(IOWorker)
       case _ => new NioDatagramChannelFactory(IOWorker)
@@ -105,28 +168,32 @@ object ChannelFactories {
 }
 
 object NIOSocketClient extends Bootstrapper[ClientBootstrap] { 
-  def bootstrap(options :Map[String,Any])  : ClientBootstrap with CanApplyPipeline[ClientBootstrap] = { 
+  def configClass = classOf[NioSocketChannelConfig] 
+  def bootstrap(options :Config)  : ClientBootstrap with CanApplyPipeline[ClientBootstrap] = { 
     val bootstrap = new ClientBootstrap(new NioClientSocketChannelFactory()) with CanApplyPipeline[ClientBootstrap] 
     setOptions(bootstrap, options)
   }
 }
 
-object NIOSocketServer extends Bootstrapper[ServerBootstrap] { 
-  def bootstrap(options :Map[String,Any])  : ServerBootstrap with CanApplyPipeline[ServerBootstrap]  = { 
+object NIOSocketServer extends Bootstrapper[ServerBootstrap] {
+  val configClass = classOf[NioSocketChannelConfig]
+  def bootstrap(options :Config)  : ServerBootstrap with CanApplyPipeline[ServerBootstrap]  = { 
     val bootstrap = new ServerBootstrap(new NioServerSocketChannelFactory()) with CanApplyPipeline[ServerBootstrap]
     setOptions(bootstrap, options)
   }
 }
 
 object SocketServer extends Bootstrapper[ServerBootstrap] { 
-  def bootstrap(options :Map[String,Any])  : ServerBootstrap with CanApplyPipeline[ServerBootstrap]  = { 
+  def configClass = classOf[SocketChannelConfig]
+  def bootstrap(options :Config)  : ServerBootstrap with CanApplyPipeline[ServerBootstrap]  = { 
     val bootstrap = new ServerBootstrap(ChannelFactories.server(options)) with CanApplyPipeline[ServerBootstrap]
     setOptions(bootstrap, options)
   }
 }
 
 object SocketClient extends Bootstrapper[ClientBootstrap] { 
-  def bootstrap(options :Map[String,Any])  : ClientBootstrap with CanApplyPipeline[ClientBootstrap]  = { 
+  def configClass = classOf[SocketChannelConfig]
+  def bootstrap(options :Config)  : ClientBootstrap with CanApplyPipeline[ClientBootstrap]  = { 
     val bootstrap = new ClientBootstrap(ChannelFactories.client(options)) with CanApplyPipeline[ClientBootstrap]
     setOptions(bootstrap, options)
   }
@@ -134,7 +201,8 @@ object SocketClient extends Bootstrapper[ClientBootstrap] {
 
 
 object DatagramServer extends  Bootstrapper[ConnectionlessBootstrap] { 
-  def bootstrap(options :Map[String,Any])  : ConnectionlessBootstrap with CanApplyPipeline[ConnectionlessBootstrap]  = { 
+  def configClass = classOf[DatagramChannelConfig]
+  def bootstrap(options :Config)  : ConnectionlessBootstrap with CanApplyPipeline[ConnectionlessBootstrap]  = { 
     val bootstrap = new ConnectionlessBootstrap(ChannelFactories.datagram(options)) with CanApplyPipeline[ConnectionlessBootstrap]
     setOptions(bootstrap, options)
   }
