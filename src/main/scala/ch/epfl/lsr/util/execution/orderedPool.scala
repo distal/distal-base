@@ -16,11 +16,15 @@ abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, ke
     getChildExecutor(task).execute(task)    
   }
 
+  def executeNext(task :Runnable) = { 
+    getChildExecutor(task).executeNext(task)    
+  }
+
   def executeInParentPool(task :ChildExecutor) { 
     super.execute(task)
   }
 
-  def getChildExecutor(task:Runnable) :Executor = { 
+  def getChildExecutor(task:Runnable) :ChildExecutor = { 
     val key = getChildExecutorKey(task)
     var executor = childExecutors.get(key)
     if(executor == null) { 
@@ -30,17 +34,25 @@ abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, ke
 	executor = oldExecutor
       }
     }
-    return executor
+    executor
   }
 
   class ChildExecutor() extends Runnable with Executor { 
     private val isRunning = new java.util.concurrent.atomic.AtomicBoolean(false)
-    private val q = new LinkedBlockingQueue[Runnable]()
+    private val q = new LinkedBlockingDeque[Runnable]()
     @volatile 
     private var lastRun = now
 
     private def now :Long = System.currentTimeMillis
     
+    def executeNext(task :Runnable) { 
+      q.offerFirst(task) 
+
+      if(!isRunning.get) { 
+	executeInParentPool(this)
+      }
+      
+    }
 
     def execute(task :Runnable) { 
       q.offer(task) 

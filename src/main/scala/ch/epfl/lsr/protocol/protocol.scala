@@ -68,6 +68,12 @@ trait Protocol {
     network.close
   }
 
+  def inPoolNext(task : =>Unit) { 
+    if(_isShutdown)
+      throw new AlreadyShutdownException
+    InProtocolPool.executeNext(this, task)
+  }
+
   def inPool(task : =>Unit) { 
     if(_isShutdown)
       throw new AlreadyShutdownException

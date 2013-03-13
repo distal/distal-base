@@ -9,9 +9,9 @@ object Executors {
   def newCachedThreadPoolExecutor(name :String) = JE.newCachedThreadPool(ThreadFactories.newNamedThreadFactory(name))
   // new ThreadPoolExecutor(2, defaultThreadCount, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue[Runnable](), ThreadFactories.newNamedThreadFactory(name))
 
-  def newCachedOrderedThreadPoolExecutor(keyFunction :Runnable=>Object, name :String) = { 
+  def newCachedOrderedThreadPoolExecutor(keyFunction :Runnable=>Object, name :String) :OrderedThreadPoolExecutor = { 
     new OrderedThreadPoolExecutor(0, Integer.MAX_VALUE, java.lang.Long.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue(10000), name) { 
-       def getChildExecutorKey(task :Runnable) = keyFunction(task)
+      def getChildExecutorKey(task :Runnable) = keyFunction(task)
     }
   }
 

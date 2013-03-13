@@ -29,4 +29,17 @@ object InProtocolPool {
     }
   }
 
+  def executeNext(task :ProtocolRunnable) { 
+    pool executeNext task 
+  }
+
+  def executeNext(protocol :Protocol, task :Runnable) { 
+    pool executeNext new DefaultProtocolRunnable(protocol, task) 
+  }
+
+  def executeNext(protocol :Protocol, task : =>Unit) { 
+    pool executeNext new AbstractProtocolRunnable(protocol) { 
+      def run = { task }
+    }
+  }
 }
