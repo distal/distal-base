@@ -11,29 +11,29 @@ import java.net.{ SocketAddress, InetSocketAddress }
 
 
 // the point to inject messages
-class ChannelSource(val conn :ConnectionDescriptor, onMessageReceived :(Any,ProtocolLocation)=>Unit) extends SimpleChannelHandler with EmptyLifeCycleAwareChannelHandler { 
-  
+class ChannelSource(val conn :ConnectionDescriptor, onMessageReceived :(Any,ProtocolLocation)=>Unit) extends SimpleChannelHandler with EmptyLifeCycleAwareChannelHandler {
+
   // context handling
-  @volatile 
+  @volatile
   var theContext :ChannelHandlerContext = null
-  
-  override def afterAdd(ctx :ChannelHandlerContext) { 
-    theContext = ctx 
-    
+
+  override def afterAdd(ctx :ChannelHandlerContext) {
+    theContext = ctx
+
     ctx.setAttachment(conn)
 
     val ch = ctx.getChannel
-    if(ch!=null && ch.isConnected) { 
+    if(ch!=null && ch.isConnected) {
       onConnectionEstablished(ch)
-    }      
+    }
 
     super.afterAdd(ctx)
   }
 
-  
-  override def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) { 
+
+  override def messageReceived(ctx :ChannelHandlerContext, e :MessageEvent) {
     onMessageReceived(e.getMessage, conn.remote)
-    
+
     super.messageReceived(ctx, e)
   }
 
@@ -44,42 +44,42 @@ class ChannelSource(val conn :ConnectionDescriptor, onMessageReceived :(Any,Prot
 
   def isConnected = theChannel != null && theChannel.isConnected
 
-  def connect() = { 
+  def connect() = {
     val future = theContext.getChannel.connect(conn.remote.getSocketAddress)
-    
-    ChannelFutures.onCompleted(future) { 
+
+    ChannelFutures.onCompleted(future) {
       f =>
 	onConnectionEstablished(f.getChannel)
     }
     future
   }
 
-  def close = { 
-    q.synchronized { 
+  def close = {
+    q.synchronized {
       val ch = theChannel
       theChannel = null
       Channels.close(ch)
     }
   }
 
-  override def channelClosed(ctx :ChannelHandlerContext , e :ChannelStateEvent) { 
+  override def channelClosed(ctx :ChannelHandlerContext , e :ChannelStateEvent) {
     theChannel = null
     super.channelClosed(ctx, e)
   }
-  
-  def onConnectionEstablished(ch :Channel) { 
-    println("Source("+conn+") connected")
 
-    q.synchronized { 
-      theChannel = ch 
+  def onConnectionEstablished(ch :Channel) {
+    // println("Source("+conn+") connected")
+
+    q.synchronized {
+      theChannel = ch
       InDownPool.write(this, q.dequeueAll(_ => true) :_*)
     }
   }
 
-  def write(msg :Any) { 
-    q.synchronized { 
+  def write(msg :Any) {
+    q.synchronized {
       if(isConnected)
-	InDownPool.write(this, msg) 
+	InDownPool.write(this, msg)
       else
 	q.enqueue(msg)
     }
@@ -88,7 +88,7 @@ class ChannelSource(val conn :ConnectionDescriptor, onMessageReceived :(Any,Prot
   def getCurrentChannel = if (isConnected) Some(theChannel) else None
 
   // other stuff
-  override def exceptionCaught(ctx :ChannelHandlerContext, e :ExceptionEvent) { 
+  override def exceptionCaught(ctx :ChannelHandlerContext, e :ExceptionEvent) {
     e.getCause.printStackTrace
     e.getChannel.close
   }
@@ -96,18 +96,18 @@ class ChannelSource(val conn :ConnectionDescriptor, onMessageReceived :(Any,Prot
 }
 
 
-object ChannelSource { 
+object ChannelSource {
 
-  def from(pipeline :ChannelPipeline) = { 
+  def from(pipeline :ChannelPipeline) = {
     pipeline.getLast.asInstanceOf[ChannelSource]
   }
 
-  def getConnectionDescriptor(pipeline :ChannelPipeline) :ConnectionDescriptor = { 
+  def getConnectionDescriptor(pipeline :ChannelPipeline) :ConnectionDescriptor = {
     pipeline.getContext(classOf[ChannelSource]).getAttachment.asInstanceOf[ConnectionDescriptor]
   }
-  
-  def getConnectionDescriptor(channel :Channel) :ConnectionDescriptor = { 
+
+  def getConnectionDescriptor(channel :Channel) :ConnectionDescriptor = {
     getConnectionDescriptor(channel.getPipeline)
   }
-  
+
 }
