@@ -25,18 +25,18 @@ abstract class OrderedThreadPoolExecutor(corePoolSize :Int, maxPoolSize :Int, wo
   def afterExecute(r :Runnable, t :Throwable) = {}
 
   val childExecutors = new ConcurrentHashMap[AnyRef, ChildExecutor]()
-  
-  def removeChildExecutorKey(key :AnyRef) { 
+
+  def removeChildExecutorKey(key :AnyRef) {
     childExecutors.remove(key)
   }
   def getChildExecutorKey(task :Runnable) : AnyRef
 
-  override def execute(task :Runnable) = { 
-    getChildExecutor(task).execute(task)    
+  override def execute(task :Runnable) = {
+    getChildExecutor(task).execute(task)
   }
 
-  def executeNext(task :Runnable) = { 
-    getChildExecutor(task).executeNext(task)    
+  def executeNext(task :Runnable) = {
+    getChildExecutor(task).executeNext(task)
   }
 
   def getChildExecutor(task:Runnable) :ChildExecutor = {
