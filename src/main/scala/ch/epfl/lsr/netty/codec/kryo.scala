@@ -136,7 +136,7 @@ trait KryoFromContext extends ImplicitRegistrationListener {
 
 }
 
-class KryoDecoder extends LengthFieldBasedFrameDecoder(1048576,0,4,0,4) with KryoFromContext {
+class KryoDecoder extends LengthFieldBasedFrameDecoder(10485760,0,4,0,4) with KryoFromContext {
   def onImplicitRegistration(registration :Registration) { }
 
   // to avoid copying as in ObjectDecoder
