@@ -8,6 +8,7 @@ import java.net.{ InetSocketAddress, URI }
 
 trait ProtocolLocation { 
   def scheme :String
+  def /(path :String) :ProtocolLocation
 }
 
 trait ProtocolRunnable extends Runnable { 
