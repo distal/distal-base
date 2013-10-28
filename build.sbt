@@ -12,7 +12,7 @@ resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/release
 
 resolvers += "Typesafe Snapshots Repository" at "http://repo.typesafe.com/typesafe/snapshots/"
 
-libraryDependencies += "io.netty" % "netty" % "3.5.2.Final"
+libraryDependencies += "io.netty" % "netty" % "3.7.0.Final"
 
 libraryDependencies += "com.typesafe" % "config" % "0.5.0"
 
