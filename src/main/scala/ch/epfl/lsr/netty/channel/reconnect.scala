@@ -8,17 +8,17 @@ import java.util.concurrent.TimeUnit
 
 import ch.epfl.lsr.util.execution.Timer._
 
-object ReconnectionHandler { 
-  private def getState(ctx :ChannelHandlerContext) = { 
+object ReconnectionHandler {
+  private def getState(ctx :ChannelHandlerContext) = {
     var rv = ctx.getAttachment.asInstanceOf[ReconnectionState]
-    if(rv == null) { 
+    if(rv == null) {
       rv = new ReconnectionState
       ctx setAttachment rv
     }
     rv
   }
 
-  class ReconnectionState() { 
+  class ReconnectionState() {
     @volatile
     var reconnect = false
     @volatile
@@ -29,29 +29,29 @@ object ReconnectionHandler {
 }
 
 // reconnects after connection is closed, copies attachments.
-class ReconnectionHandler(reconnectionTimoutMillis :Int, copyPipeline: ChannelPipeline=>ChannelPipeline) extends SimpleChannelHandler  { 
+class ReconnectionHandler(reconnectionTimoutMillis :Int, copyPipeline: ChannelPipeline=>ChannelPipeline) extends SimpleChannelHandler  {
   import ReconnectionHandler._
 
-  override def closeRequested(ctx :ChannelHandlerContext , e :ChannelStateEvent) { 
+  override def closeRequested(ctx :ChannelHandlerContext , e :ChannelStateEvent) {
     getState(ctx).reconnect = false
 
-    println("close requested")
-    
+//    println("close requested")
+
     super.closeRequested(ctx, e)
   }
 
-  override def disconnectRequested(ctx :ChannelHandlerContext , e :ChannelStateEvent) { 
+  override def disconnectRequested(ctx :ChannelHandlerContext , e :ChannelStateEvent) {
     getState(ctx).reconnect = false
-    
+
     super.disconnectRequested(ctx, e)
   }
 
-  override def connectRequested(ctx :ChannelHandlerContext , e :ChannelStateEvent) { 
+  override def connectRequested(ctx :ChannelHandlerContext , e :ChannelStateEvent) {
     val state = getState(ctx)
     state.remoteAddress = e.getValue.asInstanceOf[SocketAddress]
     state.channelFactory = e.getChannel.getFactory
-    state.reconnect = true    
-    
+    state.reconnect = true
+
     // println("connect requested in reconnector "+e.getChannel)
 
     super.connectRequested(ctx, e)
