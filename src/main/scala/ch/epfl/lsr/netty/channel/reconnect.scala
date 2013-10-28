@@ -58,12 +58,12 @@ class ReconnectionHandler(reconnectionTimoutMillis :Int, copyPipeline: ChannelPi
   }
 
 
-  override def channelClosed(ctx :ChannelHandlerContext , e :ChannelStateEvent) { 
-    delay(reconnectionTimoutMillis, TimeUnit.MILLISECONDS) { 
-      if(getState(ctx).reconnect) { 
-	// reuse the current pipeline and reconnect
- 	println("reconnecting to "+getState(ctx).remoteAddress +" "+new java.util.Date)
-	getState(ctx).channelFactory.newChannel(copyPipeline(ctx.getPipeline)).connect(getState(ctx).remoteAddress)
+  override def channelClosed(ctx :ChannelHandlerContext , e :ChannelStateEvent) {
+    delay(reconnectionTimoutMillis, TimeUnit.MILLISECONDS) {
+      if(getState(ctx).reconnect) {
+        // reuse the current pipeline and reconnect
+        // println("reconnecting to "+getState(ctx).remoteAddress +" "+new java.util.Date)
+        getState(ctx).channelFactory.newChannel(copyPipeline(ctx.getPipeline)).connect(getState(ctx).remoteAddress)
       }
     }
     super.channelClosed(ctx, e)
